@@ -5,6 +5,8 @@
 #include <avr/power.h>
 #include <GyverButton.h>
 
+#include <macros.h>
+
 /*TODO
 1. Придумать нормальное выключение
 2. Дисплей поставить на пин и включать через фет, так же как и эмитерный повторитель
@@ -19,11 +21,9 @@
 #define CLK 6
 #define DIO 7
 
-#define BUZZER_PIN 5
 #define URLED_PIN 0
 #define MRLED_PIN 1
 #define RLED_PIN 2
-#define MODE_BTN 3
 
 #define COUNTER_PIN 3
 
@@ -37,6 +37,9 @@ byte GEIGER_TIME = 37;
 #define DIVIDER 883						//Значение ацп делителя напряжения
 
 bool detected = false;
+
+const uint8_t avgFactor = 5;
+int sensorValue = 0;
 
 uint16_t *rad_buff;// = new uint16_t[GEIGER_TIME]; //массив секундных замеров для расчета фона
 uint32_t rad_sum; //сумма импульсов за все время
@@ -122,33 +125,33 @@ void setup() {
 
 	Serial.begin(9600);
 
-	bitSet(DDRC,2); 						//pin A2 (PC2) как выход, земля экрана
-	bitClear(PORTC,2);
+	PORTC_MODE(2, 0);						//pin A2 (PC2) как выход, земля экрана
+	PORTC_WRITE(2, 0);
 
-	bitSet(DDRC,3); 						//pin A3 (PC3) как выход, замля повторителя
-	bitClear(PORTC,3);
+	PORTC_MODE(3, 0); 						//pin A3 (PC3) как выход, замля повторителя
+	PORTC_WRITE(3, 0);
 
-	bitSet(DDRD,5); 						//pin 5 (PD5) как выход, звуковая индикация частицы
-	bitClear(PORTD,5);
+	PORTD_MODE(5, 0); 						//pin 5 (PD5) как выход, звуковая индикация частицы
+	PORTD_WRITE(5, 0);
 
-	bitSet(DDRB,0); 						//pin 8 (PB0) как выход, единица измерения микрорентген
-	bitClear(PORTB,0);
-	bitSet(DDRB,1); 						//pin 9 (PB1) как выход, единица измерения миллирентген
-	bitClear(PORTB,1);
-	bitSet(DDRB,2); 						//pin 10 (PB2) как выход, единица измерения рентген
-	bitClear(PORTB,2);
+	PORTB_MODE(0, 0); 						//pin 8 (PB0) как выход, единица измерения микрорентген
+	PORTB_WRITE(0, 0);
+	PORTB_MODE(1, 0); 						//pin 9 (PB1) как выход, единица измерения миллирентген
+	PORTB_WRITE(1, 0);
+	PORTB_MODE(2, 0); 						//pin 10 (PB2) как выход, единица измерения рентген
+	PORTB_WRITE(2, 0);
 
-	bitSet(DDRB,5); 						//pin 13 (PB5) как выход, блинк при засекании частицы
-	bitClear(PORTB,5);
+	PORTD_MODE(3, 0); 						//pin 3 (PD3) как выход, блинк при засекании частицы
+	PORTD_WRITE(3, 0);
 
-	bitSet(DDRB,3); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	bitClear(PORTB,3);
+	PORTB_MODE(3, 0); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_WRITE(3, 0);
 
-	bitClear(DDRD,2); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	bitSet(PORTD,2); 						//подтягивающий резистор	
+	PORTD_MODE(2, 1); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
+	PORTD_WRITE(2, 1); 						//подтягивающий резистор	
 
-	bitSet(PORTC,2);						//Включить экран
-	bitSet(PORTC,3);						//Включить эмиттерный повторитель
+	PORTC_WRITE(2, 1);						//Включить экран
+	PORTC_WRITE(3, 1);						//Включить эмиттерный повторитель
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 	TCCR2B = 0b00000010;  // x8
@@ -160,7 +163,6 @@ void setup() {
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
-	//tm1637.point(POINT_ON);
 }
 
 int adc0_read()
@@ -240,9 +242,9 @@ void sleep(){
 		delay(1000);
 		tm1637.clearDisplay();
 		analogWrite(11, 0);
-		bitClear(PORTB, MRLED_PIN);		
-		bitClear(PORTB, URLED_PIN);
-		bitClear(PORTB, RLED_PIN);
+		PORTB_WRITE(MRLED_PIN, 0);
+		PORTB_WRITE(URLED_PIN, 0);
+		PORTB_WRITE(RLED_PIN, 0);
 		
 		is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
@@ -261,8 +263,8 @@ void sleep(){
 		power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
 		power_usart0_disable();					//Юарт в дальнейшем тоже будет выпилен
 
-		bitClear(PORTC,2);						//Выключить экран
-		bitClear(PORTC,3);						//Выключить эмиттерный повторитель
+		PORTC_WRITE(2, 0);						//Выключить экран
+		PORTC_WRITE(3, 0);						//Выключить эмиттерный повторитель
 		sei();
 	}else{
 		//Ставим делитель обратно, частота 16 МГц
@@ -399,42 +401,43 @@ void signa () { //индикация каждой частички звуком 
 		if (millis()-timing>=ton_BUZZ){
 			timing+=ton_BUZZ;
 			if(detected){
-				bitSet(PORTD, 5);
-				bitSet(PORTB, 5);
+				PORTD_WRITE(5, 1);
+				PORTB_WRITE(5, 1);
 				detected = false;
 			}else{
-				bitClear(PORTB, 5);
-				bitClear(PORTD, 5);
+				PORTD_WRITE(5, 0);
+				PORTB_WRITE(5, 0);
 			}
 		}
 	}else{
 		if(detected){
 			detected = false;
     		int d = 30;
-			bitSet(PORTB, 5);
+			PORTB_WRITE(5, 1);
     		while (d > 0) {
-      			bitSet(PORTD, 5);
+      			PORTD_WRITE(5, 1);
       			delayUs(ton_BUZZ);
-      			bitClear(PORTD, 5);
+      			PORTD_WRITE(5, 0);
       			delayUs(ton_BUZZ);
 	  			asm("nop");
       			d--;
     		}
-			bitClear(PORTB, 5);
+			PORTB_WRITE(5, 0);
 		}
 	}
 }
 
 float get_battery_voltage(){
-	float voltage = 0.2 + (1125300UL / adc0_read()) * 2;
+	sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
+	float voltage = 0.2 + (1125300UL / sensorValue) * 2;
 	return voltage;
 }
 
 unsigned voltage_config()
 {
 	//ADCSRA |= (1 << ADEN);
-	unsigned readed_value = adc1_read();
-	return (TARGET_VOLTAGE*readed_value/DIVIDER);
+	sensorValue = (sensorValue * (avgFactor - 1) + adc1_read()) / avgFactor;
+	return (TARGET_VOLTAGE*sensorValue/DIVIDER);
 	//ADCSRA &= ~(1 << ADEN);
 }
 
@@ -454,7 +457,6 @@ void cancel(String msg){
 
 void save_voltage_config(void)
 {
-	//byte voltage_mult = (byte)map(adc0_read(), 0, 1023, 0, 255);
 	eeprom_update_byte((uint8_t*)0b1, pwm_converter);
 	analogWrite(11, pwm_converter);
 	tm1637.displayStr((char*)"SAVE");
@@ -511,17 +513,17 @@ void display(void){
 		}
 
 		if(cur_val > 9999){				//Переходим к микрорентгенам
-			bitSet(PORTB, MRLED_PIN);		
-			bitClear(PORTB, URLED_PIN);
-			bitClear(PORTB, RLED_PIN);
+			PORTB_WRITE(MRLED_PIN, 1);
+			PORTB_WRITE(URLED_PIN, 0);
+			PORTB_WRITE(RLED_PIN, 0);
 			cur_val /= 1000;
 		}else if(cur_val > 9999999){ 	//Переходим к рентгенам
-			bitSet(PORTB, RLED_PIN);
-			bitClear(PORTB, MRLED_PIN);
+			PORTB_WRITE(RLED_PIN, 1);
+			PORTB_WRITE(MRLED_PIN, 0);
 			cur_val /= 1000000;
 		}else{
-			bitSet(PORTB, URLED_PIN);
-			bitClear(PORTB, MRLED_PIN);
+			PORTB_WRITE(URLED_PIN, 1);
+			PORTB_WRITE(MRLED_PIN, 0);
 		}
 
 		if(zivert && mode != 1){
