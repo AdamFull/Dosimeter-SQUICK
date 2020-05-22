@@ -29,8 +29,9 @@
 GButton btn_reset(3, HIGH_PULL, NORM_OPEN);
 GButton btn_set(12, HIGH_PULL, NORM_OPEN);
 
-DataManager datamgr;
-OutputManager outmgr;
+DataManager *datamgr = new DataManager();
+OutputManager outmgr(datamgr);
+ADCManager *adcmgr = new ADCManager();
 
 void conv_pump(void);
 void impulse(void);
@@ -44,7 +45,7 @@ void setup() {
 	//wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
 	WDTCSR |= (1 << WDIE);				//Разрешить прерывания сторожевого таймера
 
-	datamgr.init();
+	datamgr->init();
 
 	btn_reset.setClickTimeout(10);
 	btn_set.setClickTimeout(10);
@@ -53,7 +54,7 @@ void setup() {
 
 	//ACSR |= 1 << ACD; //отключаем компаратор
 
-	ADCManager::adc_init();
+	adcmgr->adc_init();
 
 	outmgr.init();
 
@@ -97,7 +98,7 @@ void setup() {
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(11, datamgr.pwm_converter);
+	analogWrite(11, datamgr->pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -114,10 +115,10 @@ void setup() {
 }*/
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
-	if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
-	if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
+	if(datamgr->rad_buff[0]!=65535) datamgr->rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
+	if(++datamgr->rad_sum>999999UL*3600/datamgr->GEIGER_TIME) datamgr->rad_sum=999999UL*3600/datamgr->GEIGER_TIME; //общая сумма импульсов
 	//if(wdt_counter < 255) wdt_counter++;
-	datamgr.detected = true;
+	datamgr->detected = true;
 }
 
 ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer 1
@@ -131,27 +132,27 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 	cnt1=0;
 
 	uint32_t tmp_buff=0;
-	for(uint8_t i=0; i<datamgr.GEIGER_TIME; i++) tmp_buff+=datamgr.rad_buff[i]; //расчет фона мкР/ч
+	for(uint8_t i=0; i<datamgr->GEIGER_TIME; i++) tmp_buff+=datamgr->rad_buff[i]; //расчет фона мкР/ч
 	if(tmp_buff>999999) tmp_buff=999999; //переполнение
-	datamgr.rad_back=tmp_buff;
+	datamgr->rad_back=tmp_buff;
 
-	if(datamgr.rad_back>datamgr.rad_max) datamgr.rad_max=datamgr.rad_back; //фиксируем максимум фона
+	if(datamgr->rad_back>datamgr->rad_max) datamgr->rad_max=datamgr->rad_back; //фиксируем максимум фона
 
-	for(uint8_t k=datamgr.GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
-	datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
+	for(uint8_t k=datamgr->GEIGER_TIME-1; k>0; k--) datamgr->rad_buff[k]=datamgr->rad_buff[k-1]; //перезапись массива
+	datamgr->rad_buff[0]=0; //сбрасываем счетчик импульсов
 
-	datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
+	datamgr->rad_dose=(datamgr->rad_sum*datamgr->GEIGER_TIME/3600); //расчитаем дозу
 
-	if(datamgr.time_hrs<99) //если таймер не переполнен
+	if(datamgr->time_hrs<99) //если таймер не переполнен
 		{
-		if(++datamgr.time_sec>59) //считаем секунды
+		if(++datamgr->time_sec>59) //считаем секунды
 			{
-			if(++datamgr.time_min>59) //считаем минуты
+			if(++datamgr->time_min>59) //считаем минуты
 				{
-				if(++datamgr.time_hrs>99) datamgr.time_hrs=99; //часы
-				datamgr.time_min=0;
+				if(++datamgr->time_hrs>99) datamgr->time_hrs=99; //часы
+				datamgr->time_min=0;
 				}
-			datamgr.time_sec=0;
+			datamgr->time_sec=0;
 			}
 		}
 	}
@@ -159,13 +160,13 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 
 
 void sleep(){
-	if(!datamgr.is_sleeping){
+	if(!datamgr->is_sleeping){
 		analogWrite(11, 0);
 		PORTB_WRITE(MRLED_PIN, 0);
 		PORTB_WRITE(URLED_PIN, 0);
 		PORTB_WRITE(RLED_PIN, 0);
 		
-		datamgr.is_sleeping = true;
+		datamgr->is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
 		btn_set.setTimeout(1);
 		//Замедляю микроконтроллер в 6 раз, частота 250 кГц (Остальное слишком медленно, он не хочет просыпаться)
@@ -194,7 +195,7 @@ void sleep(){
   		MCUCR |= (1 << BODSE);
 
 		power_all_enable();
-		datamgr.is_sleeping = false;
+		datamgr->is_sleeping = false;
 		resetFunc();
 	}
 	
@@ -301,25 +302,11 @@ void sleep(){
 	}
 }*/
 
-float get_battery_voltage(){
-	datamgr.sensorValue = (datamgr.sensorValue * (datamgr.avgFactor - 1) + ADCManager::adc0_read()) / datamgr.avgFactor;
-	float voltage = 0.2 + (1125300UL / datamgr.sensorValue) * 2;
-	return voltage;
-}
-
-unsigned voltage_config()
-{
-	//ADCSRA |= (1 << ADEN);
-	datamgr.sensorValue = (datamgr.sensorValue * (datamgr.avgFactor - 1) + ADCManager::adc1_read()) / datamgr.avgFactor;
-	return (TARGET_VOLTAGE*datamgr.sensorValue/DIVIDER);
-	//ADCSRA &= ~(1 << ADEN);
-}
-
 void voltage_editing(){
-	analogWrite(11, datamgr.pwm_converter);
+	analogWrite(11, datamgr->pwm_converter);
 }
 
 void loop() {
-	if(!datamgr.is_sleeping) outmgr.update();
+	if(!datamgr->is_sleeping) outmgr.update();
 	//button_action();
 }

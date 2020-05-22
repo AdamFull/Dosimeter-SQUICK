@@ -1,4 +1,4 @@
-#include <DataManager.h>
+#include <Managers/DataManager.h>
 #include <EEPROM.h>
 
 void DataManager::update_rad_buffer() {
@@ -28,20 +28,17 @@ void DataManager::save_voltage_config(void)
 {
 	eeprom_update_byte((uint8_t*)0b1, pwm_converter);
 	analogWrite(11, pwm_converter);
-	mode = 0;
 	editing_mode = false;
 }
 
 void DataManager::save_geiger_time_config(void)
 {
 	eeprom_update_byte((uint8_t*)0b10, GEIGER_TIME);
-	update_counter();
-	mode = 0;
+	update_rad_buffer();
 	editing_mode = false;
 }
 
 void DataManager::save_tone_delay(void){
 	eeprom_update_byte((uint8_t*)0b11, ton_BUZZ);
-	mode = 0;
 	editing_mode = false;
 }
