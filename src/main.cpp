@@ -1,11 +1,13 @@
 #include <Arduino.h>
-#include <TM1637.h>
 #include <EEPROM.h>
 #include <avr/wdt.h>
 #include <avr/power.h>
-#include <GyverButton.h>
+#include <Libs/GyverButton.h>
 
 #include <macros.h>
+#include <Managers/ADCManager.h>
+#include <Managers/OutputManager.h>
+#include <Managers/DataManager.h>
 
 /*TODO
 1. Придумать нормальное выключение
@@ -18,92 +20,31 @@
 8. Отвязать пищалку от задержек
 */
 
-#define CLK 6
-#define DIO 7
-
 #define URLED_PIN 0
 #define MRLED_PIN 1
 #define RLED_PIN 2
 
 #define COUNTER_PIN 3
 
-byte GEIGER_TIME = 37;
-
-#define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
-#define HVGEN_FACT 5 // 25/5=5Гц частота подкачки преобразователя
-#define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы
-
-#define TARGET_VOLTAGE 400				//Требуемое напряжение
-#define DIVIDER 883						//Значение ацп делителя напряжения
-
-bool detected = false;
-
-const uint8_t avgFactor = 5;
-int sensorValue = 0;
-
-uint16_t *rad_buff;// = new uint16_t[GEIGER_TIME]; //массив секундных замеров для расчета фона
-uint32_t rad_sum; //сумма импульсов за все время
-uint32_t rad_back; //текущий фон
-uint32_t rad_max; //максимум фона
-uint32_t rad_dose; //доза
-uint8_t time_sec; //секунды //счетчики времени
-uint8_t time_min; //минуты
-uint8_t time_hrs; //часы
-
-uint8_t mode = 0; // режим выводимых на экран данных
-bool menu_mode = false;
-bool editing_mode = false;
-bool show_mode = false;
-bool zivert = false;
-byte pwm_converter = 45;
-
-bool is_sleeping = false;
-
-unsigned long timing = 0;
-
-byte ton_BUZZ = 200; //тональность буззера
-bool buzz_mode = false;
-
-volatile byte wdt_counter;
-
-TM1637 tm1637(CLK, DIO);
 GButton btn_reset(3, HIGH_PULL, NORM_OPEN);
 GButton btn_set(12, HIGH_PULL, NORM_OPEN);
+
+DataManager datamgr;
+OutputManager outmgr;
 
 void conv_pump(void);
 void impulse(void);
 void show_info(void);
-void update_counter(void);
-void save_voltage_config(void);
-void save_geiger_time_config(void);
-void save_tone_delay(void);
 void cancel(String);
 void button_action(void);
 void sleep(void);
 void(* resetFunc) (void) = 0;
 
-void setup_defaults()
-{
-	eeprom_write_byte((uint8_t*)0b0, 0b1);
-	eeprom_write_byte((uint8_t*)0b1, pwm_converter);
-	eeprom_write_byte((uint8_t*)0b10, GEIGER_TIME);
-	eeprom_write_byte((uint8_t*)0b11, ton_BUZZ);
-}
-
 void setup() {
-	wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
+	//wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
 	WDTCSR |= (1 << WDIE);				//Разрешить прерывания сторожевого таймера
 
-	Serial.begin(9600);
-	if(eeprom_read_byte((uint8_t*)0b0) == 0b0) setup_defaults();
-	pwm_converter = eeprom_read_byte((uint8_t*)0b1);
-	GEIGER_TIME = eeprom_read_byte((uint8_t*)0b10);
-	ton_BUZZ = eeprom_read_byte((uint8_t*)0b11);
-
-	Serial.println("PWM: " + String(pwm_converter));
-	Serial.println("Geiger: " + String(GEIGER_TIME));
-
-	update_counter();
+	datamgr.init();
 
 	btn_reset.setClickTimeout(10);
 	btn_set.setClickTimeout(10);
@@ -112,18 +53,15 @@ void setup() {
 
 	//ACSR |= 1 << ACD; //отключаем компаратор
 
-	ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
+	ADCManager::adc_init();
+
+	outmgr.init();
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
 	TCCR1A=0; //OC1A/OC1B disconnected
 	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
 	TCNT1=TIMER1_PRELOAD;
-
-	tm1637.set();
-	tm1637.init();
-
-	Serial.begin(9600);
 
 	PORTC_MODE(2, 0);						//pin A2 (PC2) как выход, земля экрана
 	PORTC_WRITE(2, 0);
@@ -159,29 +97,13 @@ void setup() {
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(11, pwm_converter);
+	analogWrite(11, datamgr.pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
 }
 
-int adc0_read()
-{
-	ADMUX |=(1 << REFS0)|(0 << MUX0)|(0 << MUX1)|(0 << MUX2)|(0 << MUX3); // выставляем опорное напряжение Vcc, снимать сигнал будем с входа AC3
-	do{ ADCSRA |= (1 << ADSC); } // Начинаем преобразование
-	while ((ADCSRA & (1 << ADIF)) == 0); // пока не будет выставлен флаг об окончании преобразования
-	return (ADCL | ADCH<<8);
-}
-
-int adc1_read()
-{
-	ADMUX |= (0 << REFS1)|(1 << REFS0)|(1 << MUX0)|(0 << MUX1)|(0 << MUX2)|(0 << MUX3); // выставляем опорное напряжение Vcc, снимать сигнал будем с входа AC3
-	do{ ADCSRA |= (1 << ADSC); } // Начинаем преобразование
-	while ((ADCSRA & (1 << ADIF)) == 0); // пока не будет выставлен флаг об окончании преобразования
-	return (ADCL | ADCH<<8);
-}
-
-ISR(WDT_vect){
+/*ISR(WDT_vect){
 	if(wdt_counter > 0 && !is_sleeping){
 		wdt_counter--;
 		wdt_disable();
@@ -189,13 +111,13 @@ ISR(WDT_vect){
 		if(!is_sleeping) sleep();
 		else wdt_reset();
 	}
-}
+}*/
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
-	if(rad_buff[0]!=65535) rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
-	if(++rad_sum>999999UL*3600/GEIGER_TIME) rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
-	if(wdt_counter < 255) wdt_counter++;
-	detected = true;
+	if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
+	if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
+	//if(wdt_counter < 255) wdt_counter++;
+	datamgr.detected = true;
 }
 
 ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer 1
@@ -209,27 +131,27 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 	cnt1=0;
 
 	uint32_t tmp_buff=0;
-	for(uint8_t i=0; i<GEIGER_TIME; i++) tmp_buff+=rad_buff[i]; //расчет фона мкР/ч
+	for(uint8_t i=0; i<datamgr.GEIGER_TIME; i++) tmp_buff+=datamgr.rad_buff[i]; //расчет фона мкР/ч
 	if(tmp_buff>999999) tmp_buff=999999; //переполнение
-	rad_back=tmp_buff;
+	datamgr.rad_back=tmp_buff;
 
-	if(rad_back>rad_max) rad_max=rad_back; //фиксируем максимум фона
+	if(datamgr.rad_back>datamgr.rad_max) datamgr.rad_max=datamgr.rad_back; //фиксируем максимум фона
 
-	for(uint8_t k=GEIGER_TIME-1; k>0; k--) rad_buff[k]=rad_buff[k-1]; //перезапись массива
-	rad_buff[0]=0; //сбрасываем счетчик импульсов
+	for(uint8_t k=datamgr.GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
+	datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 
-	rad_dose=(rad_sum*GEIGER_TIME/3600); //расчитаем дозу
+	datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
 
-	if(time_hrs<99) //если таймер не переполнен
+	if(datamgr.time_hrs<99) //если таймер не переполнен
 		{
-		if(++time_sec>59) //считаем секунды
+		if(++datamgr.time_sec>59) //считаем секунды
 			{
-			if(++time_min>59) //считаем минуты
+			if(++datamgr.time_min>59) //считаем минуты
 				{
-				if(++time_hrs>99) time_hrs=99; //часы
-				time_min=0;
+				if(++datamgr.time_hrs>99) datamgr.time_hrs=99; //часы
+				datamgr.time_min=0;
 				}
-			time_sec=0;
+			datamgr.time_sec=0;
 			}
 		}
 	}
@@ -237,16 +159,13 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 
 
 void sleep(){
-	if(!is_sleeping){
-		tm1637.displayStr((char*)"P0FF");
-		delay(1000);
-		tm1637.clearDisplay();
+	if(!datamgr.is_sleeping){
 		analogWrite(11, 0);
 		PORTB_WRITE(MRLED_PIN, 0);
 		PORTB_WRITE(URLED_PIN, 0);
 		PORTB_WRITE(RLED_PIN, 0);
 		
-		is_sleeping = true;
+		datamgr.is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
 		btn_set.setTimeout(1);
 		//Замедляю микроконтроллер в 6 раз, частота 250 кГц (Остальное слишком медленно, он не хочет просыпаться)
@@ -275,15 +194,13 @@ void sleep(){
   		MCUCR |= (1 << BODSE);
 
 		power_all_enable();
-		is_sleeping = false;
-		tm1637.displayStr((char*)"P ON");
-		delay(1000);
+		datamgr.is_sleeping = false;
 		resetFunc();
 	}
 	
 }
 
-void button_action(){
+/*void button_action(){
 	btn_reset.tick();
 	btn_set.tick();
 
@@ -382,169 +299,27 @@ void button_action(){
 		}
 		if(wdt_counter < 255) wdt_counter++;
 	}
-}
-
-void update_counter(void){
-	rad_buff = new uint16_t[GEIGER_TIME];
-	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = (uint16_t)0; }
-	rad_back = rad_dose = rad_max = rad_sum = 0;
-}
-
-void delayUs(byte dtime){
-	for(int i = 0; i < dtime; i++){
-		_delay_us(1);
-	}
-}
-
-void signa () { //индикация каждой частички звуком светом
-	if(buzz_mode){
-		if (millis()-timing>=ton_BUZZ){
-			timing+=ton_BUZZ;
-			if(detected){
-				PORTD_WRITE(5, 1);
-				PORTB_WRITE(5, 1);
-				detected = false;
-			}else{
-				PORTD_WRITE(5, 0);
-				PORTB_WRITE(5, 0);
-			}
-		}
-	}else{
-		if(detected){
-			detected = false;
-    		int d = 30;
-			PORTB_WRITE(5, 1);
-    		while (d > 0) {
-      			PORTD_WRITE(5, 1);
-      			delayUs(ton_BUZZ);
-      			PORTD_WRITE(5, 0);
-      			delayUs(ton_BUZZ);
-	  			asm("nop");
-      			d--;
-    		}
-			PORTB_WRITE(5, 0);
-		}
-	}
-}
+}*/
 
 float get_battery_voltage(){
-	sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
-	float voltage = 0.2 + (1125300UL / sensorValue) * 2;
+	datamgr.sensorValue = (datamgr.sensorValue * (datamgr.avgFactor - 1) + ADCManager::adc0_read()) / datamgr.avgFactor;
+	float voltage = 0.2 + (1125300UL / datamgr.sensorValue) * 2;
 	return voltage;
 }
 
 unsigned voltage_config()
 {
 	//ADCSRA |= (1 << ADEN);
-	sensorValue = (sensorValue * (avgFactor - 1) + adc1_read()) / avgFactor;
-	return (TARGET_VOLTAGE*sensorValue/DIVIDER);
+	datamgr.sensorValue = (datamgr.sensorValue * (datamgr.avgFactor - 1) + ADCManager::adc1_read()) / datamgr.avgFactor;
+	return (TARGET_VOLTAGE*datamgr.sensorValue/DIVIDER);
 	//ADCSRA &= ~(1 << ADEN);
 }
 
 void voltage_editing(){
-	analogWrite(11, pwm_converter);
-}
-
-void cancel(String msg){
-	char buff[4];
-	msg.toCharArray(buff, 5);
-	tm1637.displayStr(buff);
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-	menu_mode = false;
-}
-
-void save_voltage_config(void)
-{
-	eeprom_update_byte((uint8_t*)0b1, pwm_converter);
-	analogWrite(11, pwm_converter);
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void save_geiger_time_config(void)
-{
-	eeprom_update_byte((uint8_t*)0b10, GEIGER_TIME);
-	update_counter();
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void save_tone_delay(void){
-	eeprom_update_byte((uint8_t*)0b11, ton_BUZZ);
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void display(void){
-	String current_output = "";
-	char buff[5];
-	uint32_t cur_val = 0;
-	float in_zivert = 0.f;
-	if(menu_mode || show_mode){
-		switch (mode)
-		{
-			case 0:{ current_output = "BACK"; } break;
-			case 1:{ current_output = "PVLS"; } break;
-			case 2:{ current_output = "PEAK"; } break;
-			case 3:{ current_output = "D0SE"; } break;
-			case 4:{ current_output = "HV0L"; } break;
-			case 5:{ current_output = "CALC"; } break;
-			case 6:{ current_output = "t0nE"; } break;
-			case 7:{ current_output = "BAtt"; } break;
-		}
-	}else{
-		switch (mode){
-			case 0: { cur_val = rad_back; } break;		// Выбираем текущий фон
-			case 1: { cur_val = rad_sum; } break;		// Выбираем число импульсов за всё время
-			case 2: { cur_val = rad_max; } break;		// Выбираем максимальный фон
-			case 3: { cur_val = rad_dose; } break;		// Выбираем накопленную дозу
-			case 4: { cur_val = (uint32_t)pwm_converter; } break; //voltage_config() - Потом выводить на экран вольты, когда будет делитель
-			case 5: { cur_val = (uint32_t)GEIGER_TIME; } break;
-			case 6: { cur_val = (uint32_t)ton_BUZZ; } break;
-			case 7: { cur_val = get_battery_voltage()/1000; } break;
-		}
-
-		if(cur_val > 9999){				//Переходим к микрорентгенам
-			PORTB_WRITE(MRLED_PIN, 1);
-			PORTB_WRITE(URLED_PIN, 0);
-			PORTB_WRITE(RLED_PIN, 0);
-			cur_val /= 1000;
-		}else if(cur_val > 9999999){ 	//Переходим к рентгенам
-			PORTB_WRITE(RLED_PIN, 1);
-			PORTB_WRITE(MRLED_PIN, 0);
-			cur_val /= 1000000;
-		}else{
-			PORTB_WRITE(URLED_PIN, 1);
-			PORTB_WRITE(MRLED_PIN, 0);
-		}
-
-		if(zivert && mode != 1){
-			in_zivert = cur_val/1000;
-		}else{
-			current_output = String(cur_val);
-		}
-	}
-	current_output.toCharArray(buff, 5);
-	tm1637.displayStr(buff);
-	if(show_mode){
-		delay(1000);
-		show_mode = false;
-	}
+	analogWrite(11, datamgr.pwm_converter);
 }
 
 void loop() {
-	if(!is_sleeping){
-		display();
-		signa();
-		if(editing_mode && mode == 4) voltage_editing();
-	}
-	button_action();
+	if(!datamgr.is_sleeping) outmgr.update();
+	//button_action();
 }
