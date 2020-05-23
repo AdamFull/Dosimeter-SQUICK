@@ -9,7 +9,7 @@ class ADCManager{
         ADCManager() {}
         void adc_init();
         float get_battery_voltage();
-        unsigned voltage_config();
+        unsigned get_hv();
 
     private:
         int adc0_read();

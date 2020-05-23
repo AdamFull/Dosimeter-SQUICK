@@ -1,7 +1,9 @@
 #include <Managers/OutputManager.h>
 #include <macros.h>
+#include <logo.h>
 
 void OutputManager::init(){
+    adcmgr->adc_init();
     display.begin();      
     display.setContrast(datamgr->contrast); //Set contrast to 50
     display.clearDisplay(); 
@@ -9,7 +11,6 @@ void OutputManager::init(){
 }
 
 void OutputManager::update(){
-    new_update:
     if(datamgr->redraw_required){
         switch (datamgr->page){
             case 0: draw_logo(); datamgr->page = 1; break;
@@ -17,10 +18,6 @@ void OutputManager::update(){
             case 2: draw_menu(); break;
         }
         datamgr->redraw_required = false;
-    }else{
-        if(1){
-            goto new_update;
-        }
     }
     beep();
 }
@@ -49,7 +46,9 @@ void OutputManager::beep() { //индикация каждой частички 
 }
 
 void OutputManager::draw_logo(){
-
+    display.drawBitmap(0, 0,  logo_Bitmap, logo_Width, logo_Height, BLACK);
+	display.display();
+    delay(2000);
 }
 
 void OutputManager::draw_main(){
@@ -107,21 +106,27 @@ void OutputManager::draw_menu(){
             if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
             else display.setTextColor(BLACK, WHITE);
             display.print(">Out voltage: ");
+            display.print(adcmgr->get_hv());
+            display.print(" V");
             display.setCursor(0, 25);
 
             if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
             else display.setTextColor(BLACK, WHITE);  
             display.print(">Counting time: ");
+            display.print(datamgr->GEIGER_TIME);
+            display.print(" sec");
             display.setCursor(0, 35);
     
             if (datamgr->cursor==2) display.setTextColor(WHITE, BLACK);
             else display.setTextColor(BLACK, WHITE);
             display.print(">Beep tone: ");
+            display.print(datamgr->ton_BUZZ);
             display.setCursor(0, 45);
 
             if (datamgr->cursor==3) display.setTextColor(WHITE, BLACK);
             else display.setTextColor(BLACK, WHITE);
             display.print(">Backlight: ");
+            display.print(datamgr->backlight);
         }break;
 
         case 3:{

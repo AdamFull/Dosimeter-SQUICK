@@ -5,9 +5,7 @@
 #include <Libs/GyverButton.h>
 
 #include <macros.h>
-#include <Managers/ADCManager.h>
 #include <Managers/OutputManager.h>
-#include <Managers/DataManager.h>
 
 /*TODO
 1. Придумать нормальное выключение
@@ -26,17 +24,12 @@
 
 #define COUNTER_PIN 3
 
-GButton btn_reset(3, HIGH_PULL, NORM_OPEN);
-GButton btn_set(12, HIGH_PULL, NORM_OPEN);
+GButton btn_reset(A4, HIGH_PULL, NORM_OPEN);
+GButton btn_set(A5, HIGH_PULL, NORM_OPEN);
 
 DataManager *datamgr = new DataManager();
 OutputManager outmgr(datamgr);
-ADCManager *adcmgr = new ADCManager();
 
-void conv_pump(void);
-void impulse(void);
-void show_info(void);
-void cancel(String);
 void button_action(void);
 void sleep(void);
 void(* resetFunc) (void) = 0;
@@ -53,8 +46,6 @@ void setup() {
 	btn_set.setTimeout(1000);
 
 	//ACSR |= 1 << ACD; //отключаем компаратор
-
-	adcmgr->adc_init();
 
 	outmgr.init();
 
@@ -98,7 +89,7 @@ void setup() {
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(11, datamgr->pwm_converter);
+	analogWrite(3, datamgr->pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -158,7 +149,6 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 	}
 }
 
-
 void sleep(){
 	if(!datamgr->is_sleeping){
 		analogWrite(11, 0);
@@ -201,112 +191,122 @@ void sleep(){
 	
 }
 
-/*void button_action(){
+void button_action(){
 	btn_reset.tick();
 	btn_set.tick();
 
 	bool btn_reset_isHolded = btn_reset.isHolded();
 	bool btn_set_isHolded = btn_set.isHolded();
 
+	bool menu_mode = datamgr->page == 2;
+
 	if(btn_reset.isHold() && btn_set.isHold()){
 		if(!menu_mode){
-			menu_mode = true;
-			editing_mode = false;
+			datamgr->page = 2;
+			datamgr->editing_mode = false;
 			btn_reset.resetStates();
 			btn_set.resetStates();
 		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_reset_isHolded){
-		if(menu_mode || editing_mode){
-			if(editing_mode && (mode == 4 || mode == 5)){
-				editing_mode = false;
-				menu_mode = true;
-			}else{
-				cancel("----");
-			}
-		}else{
-			switch (mode)
-			{
-				case 0:{ rad_back = 0; } break;
-				case 1:{ rad_sum = 0; } break;
-				case 2:{ rad_max = 0; } break;
-				case 3:{ rad_dose = 0; } break;
+	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
+		if(menu_mode && !datamgr->editing_mode) datamgr->page = 1;
+		if(datamgr->editing_mode) datamgr->editing_mode = false;
+	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
+		if(menu_mode && !datamgr->editing_mode) datamgr->cursor--;
+		if(datamgr->editing_mode){
+			switch (datamgr->cursor){
+				case 0:{ datamgr->pwm_converter--; }break;
+				case 1:{ datamgr->GEIGER_TIME--; }break;
+				case 2:{ datamgr->ton_BUZZ--; }break;
+				case 3:{ datamgr->backlight--; }break;
 			}
 		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_reset.isClick() && !btn_reset_isHolded){
-		if(menu_mode || editing_mode)
-		{
-			if(editing_mode){
-				if(mode == 4)
-					if(pwm_converter > 0)
-						pwm_converter--;
-				if(mode == 5)
-					if(GEIGER_TIME > 0)
-						GEIGER_TIME--;
-				if(mode == 6){
-					if(ton_BUZZ > 0)
-						ton_BUZZ -= 5;
-					detected = true;
-				}
-			}else{
-				if(mode > 0)
-					mode--;
+	}else if(btn_set_isHolded){												//Удержание кнопки сет
+		if(menu_mode && !datamgr->editing_mode) {
+			switch (datamgr->menu_page){
+				case 0:{
+					switch (datamgr->cursor){
+						case 0:{ datamgr->menu_page = 1; }break;
+						case 1:{ datamgr->menu_page = 2; }break;
+						case 2:{ datamgr->menu_page = 3; }break;
+						case 3:{ datamgr->menu_page = 4; }break;
+					}
+					datamgr->cursor = 0;
+				}break;
+				case 1:{
+					switch (datamgr->cursor){
+						case 0:{ /*Пока хз*/ }break;
+						case 1:{ /*Пока хз*/ }break;
+						case 2:{ /*Пока хз*/ }break;
+					}
+					datamgr->cursor = 0;
+				}break;
+				case 2:{
+					switch (datamgr->cursor){								//Тут курсор не сбрасывать, обездвижить
+						case 0:{ datamgr->editing_mode = true; }break;
+						case 1:{ datamgr->editing_mode = true; }break;
+						case 2:{ datamgr->editing_mode = true; }break;
+						case 3:{ datamgr->editing_mode = true; }break;
+					}
+				}break;
+				case 3:{
+					switch (datamgr->cursor){								//Стереть данные
+						case 0:{ datamgr->reset_settings(); datamgr->menu_page = 0; }break;
+						case 1:{ /*Пока хз*/ }break;
+						case 2:{ datamgr->reset_settings(); datamgr->menu_page = 0; }break;
+					}
+					datamgr->cursor = 0;
+				}break;
+				case 4:{
+					switch (datamgr->cursor){								//Вообще это диалог выбора, но пока что это не он
+						case 0:{ datamgr->menu_page = 0; }break;
+						case 1:{ sleep(); }break;
+					}
+					datamgr->cursor = 0;
+				}break;
 			}
-		}else{
-			show_mode = true;
-		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_set_isHolded){
-		if(menu_mode || editing_mode){
-			if((mode == 4 || mode == 5 || mode == 6) && !editing_mode){
-				editing_mode = true;
-				menu_mode = false;
-			}else if(editing_mode){
-				if(mode == 4)
-					save_voltage_config();
-				if(mode == 5)
-					save_geiger_time_config();
-				if(mode == 6)
-					save_tone_delay();
-			}else{
-				menu_mode = false;
+			if(datamgr->editing_mode){
+				datamgr->editing_mode = false;
+				datamgr->save_all();
 			}
-		}else{
-			sleep();
 		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_set.isClick() && !btn_set_isHolded){
-		if(menu_mode || editing_mode)
-		{
-			if(editing_mode){
-				if(mode == 4)
-					if(pwm_converter < 255)
-						pwm_converter++;
-				if(mode == 5)
-					if(GEIGER_TIME < 255)
-						GEIGER_TIME++;
-				if(mode == 6){
-					if(ton_BUZZ < 255)
-						ton_BUZZ += 5;
-					detected = true;
-				}
-			}else{
-				if(mode < 7)
-					mode++;
+	}else if(btn_set.isClick() && !btn_set_isHolded){					//Клик кнопки сет
+		if(menu_mode && !datamgr->editing_mode){						//Сдвинуть курсор, если можно
+			switch (datamgr->menu_page){
+				case 0:{ if(datamgr->cursor < 4) datamgr->cursor++; } break;
+				case 1:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
+				case 2:{ if(datamgr->cursor < 4) datamgr->cursor++; } break;
+				case 3:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
+				case 4:{ if(datamgr->cursor < 2) datamgr->cursor++; } break;
 			}
-		}else{
-			zivert = !zivert;
 		}
-		if(wdt_counter < 255) wdt_counter++;
+		if(datamgr->editing_mode){										//Если редактируем
+			switch (datamgr->cursor){
+				case 0:{ datamgr->pwm_converter++; }break;
+				case 1:{ datamgr->GEIGER_TIME++; }break;
+				case 2:{ datamgr->ton_BUZZ++; }break;
+				case 3:{ datamgr->backlight++; }break;
+			}
+		}
 	}
-}*/
+}
 
-void voltage_editing(){
-	analogWrite(11, datamgr->pwm_converter);
+void mode_handler(){
+	if(datamgr->page == 2){
+		if(datamgr->editing_mode)
+		switch (datamgr->cursor){
+			case 0:{ analogWrite(3, datamgr->pwm_converter); } break;
+			case 1:{} break;
+			case 2:{ datamgr->detected = true; } break;
+			case 3:{ analogWrite(11, datamgr->backlight); } break;
+			case 4:{ outmgr.set_contrast(datamgr->contrast); } break;
+		}
+	}
 }
 
 void loop() {
-	if(!datamgr->is_sleeping) outmgr.update();
-	//button_action();
+	if(!datamgr->is_sleeping){
+		mode_handler();
+		outmgr.update();
+	}
+	button_action();
 }

@@ -5,15 +5,15 @@ void ADCManager::adc_init(){
 }
 
 float ADCManager::get_battery_voltage(){
-	sensorValue = (sensorValue * (avgFactor - 1) + ADCManager::adc0_read()) / avgFactor;
+	sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
 	float voltage = 0.2 + (1125300UL / sensorValue) * 2;
 	return voltage;
 }
 
-unsigned ADCManager::voltage_config()
+unsigned ADCManager::get_hv()
 {
 	//ADCSRA |= (1 << ADEN);
-	sensorValue = (sensorValue * (avgFactor - 1) + ADCManager::adc1_read()) / avgFactor;
+	sensorValue = (sensorValue * (avgFactor - 1) + adc1_read()) / avgFactor;
 	return (TARGET_VOLTAGE*sensorValue/DIVIDER);
 	//ADCSRA &= ~(1 << ADEN);
 }

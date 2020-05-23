@@ -13,9 +13,9 @@ class DataManager{
 
         void update_rad_buffer();
 
-        void save_voltage_config();
-        void save_geiger_time_config();
-        void save_tone_delay();
+        void save_all();
+
+        void reset_settings();
 
         byte GEIGER_TIME = 37;
         bool detected = false;
