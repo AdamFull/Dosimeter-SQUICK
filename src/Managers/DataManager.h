@@ -13,12 +13,22 @@ class DataManager{
 
         void update_rad_buffer();
 
-        void save_all();
+        void save_dose();
+        void save_pwm();
+        void save_tone();
+        void save_bl();
+        void save_contrast();
+        void save_time();
 
+        void read_eeprom();
+
+        void reset_dose();
         void reset_settings();
 
         byte GEIGER_TIME = 37;
         bool detected = false;
+
+        byte editable = 0;
 
         uint16_t *rad_buff;// = new uint16_t[GEIGER_TIME]; //массив секундных замеров для расчета фона
         uint32_t rad_sum; //сумма импульсов за все время
@@ -42,12 +52,15 @@ class DataManager{
         bool redraw_required = true;
 
         byte contrast = 60;
-        byte backlight = 0;
+        bool backlight = 0;
 
         int page = 0;
         int menu_page = 0;
+
+        float battery_voltage = 0;
         //display//
 
+        byte has_eeprom = 1;
         volatile byte wdt_counter;
 
 };

@@ -6,6 +6,8 @@
 
 #include <Managers/OutputManager.h>
 
+unsigned long dose_timer = 0;
+
 GButton btn_reset(A4, HIGH_PULL, NORM_OPEN);
 GButton btn_set(A5, HIGH_PULL, NORM_OPEN);
 
@@ -23,8 +25,8 @@ void setup() {
 	datamgr->init();
 	Serial.println("datamgr init ok");
 
-	btn_reset.setClickTimeout(10);
-	btn_set.setClickTimeout(10);
+	btn_reset.setClickTimeout(100);
+	btn_set.setClickTimeout(100);
 	btn_reset.setTimeout(1000);
 	btn_set.setTimeout(1000);
 
@@ -75,6 +77,7 @@ void setup() {
   	TIMSK1=0b00000001; //запускаем Timer 1
 
 	analogWrite(3, datamgr->pwm_converter);
+	analogWrite(11, !datamgr->backlight);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -136,9 +139,6 @@ void sleep(){
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 6;
 		cli();
-		// Отключаем детектор пониженного напряжения питания
-  		MCUCR != (1 << BODS) | (1 << BODSE);
-  		MCUCR &= ~(1 << BODSE);
 		//Отключаю всё кроме таймера 0, т.к. он нужен для обработки кнопки.
 		power_timer1_disable();					//используется для расчётов, в выключеном состоянии они не нужны
 		power_timer2_disable();					//используется для шим, он тоже не нужен.
@@ -153,9 +153,6 @@ void sleep(){
 		//Ставим делитель обратно, частота 16 МГц
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 0;
-		// Отключаем детектор пониженного напряжения питания
-  		MCUCR = (1 << BODS) | (1 << BODSE);
-  		MCUCR |= (1 << BODSE);
 
 		power_all_enable();
 		datamgr->is_sleeping = false;
@@ -187,15 +184,26 @@ void button_action(){
 			else datamgr->menu_page = 0;
 		}
 		if(editing_mode) datamgr->editing_mode = false;
+	}else if(btn_reset.isDouble() && !btn_reset_isHolded){
+		if(editing_mode){
+			switch (datamgr->cursor){
+				case 0:{ datamgr->pwm_converter-=5; }break;
+				case 1:{ datamgr->GEIGER_TIME-=5; }break;
+				case 2:{ datamgr->ton_BUZZ-=5; }break;
+				case 3:{ datamgr->backlight-=5; }break;
+				case 4:{ datamgr->contrast-=5; }break;
+			}
+		}
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
 		if(menu_mode && !editing_mode && datamgr->cursor > 0) datamgr->cursor--;
 		if(editing_mode){
-			switch (datamgr->cursor){
+			/*switch (datamgr->cursor){
 				case 0:{ datamgr->pwm_converter--; }break;
 				case 1:{ datamgr->GEIGER_TIME--; }break;
 				case 2:{ datamgr->ton_BUZZ--; }break;
-				case 3:{ datamgr->backlight--; }break;
-			}
+				case 3:{ datamgr->backlight = !datamgr->backlight; }break;
+			}*/
+			datamgr->editable--;
 		}
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(menu_mode && !editing_mode) {
@@ -218,6 +226,12 @@ void button_action(){
 					datamgr->cursor = 0;
 				}break;
 				case 2:{
+					switch (datamgr->cursor){
+						case 0:{ datamgr->editable = datamgr->pwm_converter; }break;
+						case 1:{ datamgr->editable = datamgr->GEIGER_TIME; }break;
+						case 2:{ datamgr->editable = datamgr->ton_BUZZ; }break;
+						case 3:{ datamgr->editable = datamgr->backlight; }break;
+					}
 					datamgr->editing_mode = true;
 					Serial.print("Set editing: ");
 					Serial.println(datamgr->editing_mode);
@@ -225,8 +239,8 @@ void button_action(){
 				case 3:{
 					switch (datamgr->cursor){								//Стереть данные
 						case 0:{ datamgr->reset_settings(); datamgr->menu_page = 0; }break;
-						case 1:{ /*Пока хз*/ }break;
-						case 2:{ datamgr->reset_settings(); datamgr->menu_page = 0; }break;
+						case 1:{ datamgr->reset_dose(); datamgr->menu_page = 0; }break;
+						case 2:{ datamgr->reset_settings(); datamgr->reset_dose(); datamgr->menu_page = 0; }break;
 					}
 					datamgr->cursor = 0;
 				}break;
@@ -240,8 +254,24 @@ void button_action(){
 			}
 		}
 		if(menu_mode && editing_mode){
+			switch (datamgr->cursor){
+				case 0:{ datamgr->save_pwm(); }break;
+				case 1:{ datamgr->save_time(); }break;
+				case 2:{ datamgr->save_tone(); }break;
+				case 3:{ datamgr->save_bl(); }break;
+				case 4:{ datamgr->save_contrast(); }break;
+			}
 			datamgr->editing_mode = false;
-			datamgr->save_all();
+		}
+	}else if(btn_set.isDouble() && !btn_set_isHolded){
+		if(editing_mode){
+			switch (datamgr->cursor){
+				case 0:{ datamgr->pwm_converter+=5; }break;
+				case 1:{ datamgr->GEIGER_TIME+=5; }break;
+				case 2:{ datamgr->ton_BUZZ+=5; }break;
+				case 3:{ datamgr->backlight+=5; }break;
+				case 4:{ datamgr->contrast+=5; }break;
+			}
 		}
 	}else if(btn_set.isClick() && !btn_set_isHolded){					//Клик кнопки сет
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
@@ -254,12 +284,13 @@ void button_action(){
 			}
 		}
 		if(editing_mode){										//Если редактируем
-			switch (datamgr->cursor){
+			/*switch (datamgr->cursor){
 				case 0:{ datamgr->pwm_converter++; }break;
 				case 1:{ datamgr->GEIGER_TIME++; }break;
 				case 2:{ datamgr->ton_BUZZ++; }break;
-				case 3:{ datamgr->backlight++; }break;
-			}
+				case 3:{ datamgr->backlight = !datamgr->backlight; }break;
+			}*/
+			datamgr->editable++;
 		}
 	}
 }
@@ -268,11 +299,11 @@ void mode_handler(){
 	if(datamgr->page == 2){
 		if(datamgr->editing_mode)
 		switch (datamgr->cursor){
-			case 0:{ analogWrite(3, datamgr->pwm_converter); } break;
+			case 0:{ analogWrite(3, datamgr->editable); } break;
 			case 1:{} break;
 			case 2:{ datamgr->detected = true; } break;
-			case 3:{ analogWrite(11, datamgr->backlight); } break;
-			case 4:{ outmgr->set_contrast(datamgr->contrast); } break;
+			case 3:{ analogWrite(11, !datamgr->editable); } break;
+			case 4:{ outmgr->set_contrast(datamgr->editable); } break;
 		}
 	}
 }
@@ -283,4 +314,10 @@ void loop() {
 		outmgr->update();
 	}
 	button_action();
+
+	if(millis()-dose_timer > 65535){
+		dose_timer = millis();
+		datamgr->save_dose();
+		datamgr->rad_max = datamgr->rad_back;
+	}
 }

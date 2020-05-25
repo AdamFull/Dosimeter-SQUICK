@@ -7,7 +7,7 @@ void ADCManager::adc_init(){
 float ADCManager::get_battery_voltage(){
 	sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
 	float voltage = 0.2 + (1125300UL / sensorValue) * 2;
-	return voltage;
+	return voltage/1000;
 }
 
 unsigned ADCManager::get_hv()
