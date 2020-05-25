@@ -3,15 +3,15 @@
 #include <logo.h>
 
 void OutputManager::init(){
-    adcmgr->adc_init();
     display.begin();      
-    display.setContrast(datamgr->contrast); //Set contrast to 50
-    display.clearDisplay(); 
-    display.display();  
+    display.setContrast(datamgr->contrast);
+    display.display(); // show splashscreen
+    display.clearDisplay();
+    adcmgr->adc_init();
 }
 
 void OutputManager::update(){
-    if(datamgr->redraw_required){
+    if(1/*datamgr->redraw_required*/){
         switch (datamgr->page){
             case 0: draw_logo(); datamgr->page = 1; break;
             case 1: draw_main(); break;
@@ -46,116 +46,127 @@ void OutputManager::beep() { //индикация каждой частички 
 }
 
 void OutputManager::draw_logo(){
-    display.drawBitmap(0, 0,  logo_Bitmap, logo_Width, logo_Height, BLACK);
+    display.clearDisplay();
+    display.drawBitmap(0, 0, logo_Bitmap, 84, 48, BLACK);
 	display.display();
     delay(2000);
 }
 
 void OutputManager::draw_main(){
+    display.clearDisplay();
+    display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
+    display.setTextSize(2);
+    display.setCursor(0, 8);
+    if(datamgr->rad_back > 1000) display.print(datamgr->rad_back/1000);
+    else if(datamgr->rad_back > 1000000) display.print(datamgr->rad_back/1000000);
+    else display.print(datamgr->rad_back);
+    display.setTextSize(0);
+    display.setCursor(0, 23);
+    if(datamgr->rad_back > 1000) display.print("mR/h");
+    else if(datamgr->rad_back > 1000000) display.print("R/h");
+    else display.print("uR/h");
+    display.drawFastHLine(0,33,84,BLACK);
+    display.setCursor(0, 43);
+    display.print("Привет мир");
 
+    display.display();
 }
 
 void OutputManager::draw_menu(){
-    display.setTextSize(1);
+    display.setTextSize(0);
     display.clearDisplay();
-    display.setTextColor(BLACK, WHITE);
+    display.setTextColor(WHITE, BLACK);
     display.setCursor(15, 0);
     display.print(current_page_name[datamgr->menu_page]);
-    display.drawFastHLine(0,10,83,BLACK);
-    display.setCursor(0, 15);
+    //display.drawFastHLine(0,10,83,BLACK);
+    display.setCursor(0, 10);
+    display.setTextColor(BLACK, WHITE);
 
     switch (datamgr->menu_page){
         case 0:{
-            if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Mode");
-            display.setCursor(0, 25);
+            if (datamgr->cursor==0) display.print(">");
+            display.print("Mode");
+            display.setCursor(0, 20);
 
-            if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);  
-            display.print(">Settings");
-            display.setCursor(0, 35);
+            if (datamgr->cursor==1) display.print(">");
+            display.print("Settings");
+            display.setCursor(0, 30);
     
-            if (datamgr->cursor==2) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Reset");
-            display.setCursor(0, 45);
+            if (datamgr->cursor==2) display.print(">");
+            display.print("Reset");
+            display.setCursor(0, 40);
 
-            if (datamgr->cursor==3) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Power off");
+            if (datamgr->cursor==3) display.print(">");
+            display.print("Power off");
         }break;
 
         case 1:{
-            if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Background");
-            display.setCursor(0, 25);
+            if (datamgr->cursor==0) display.print(">");
+            display.print("Background");
+            display.setCursor(0, 20);
 
-            if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);  
-            display.print(">Beta");
-            display.setCursor(0, 35);
+            if (datamgr->cursor==1) display.print(">");
+            display.print("Beta");
+            display.setCursor(0, 30);
     
-            if (datamgr->cursor==2) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Gamma");
+            if (datamgr->cursor==2) display.print(">");
+            display.print("Gamma");
         }break;
 
         case 2:{
-            if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Out voltage: ");
+            if (datamgr->cursor==0) display.print(">");
+            display.print("Out HV:");
+            if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
             display.print(adcmgr->get_hv());
-            display.print(" V");
-            display.setCursor(0, 25);
+            display.print("V");
+            display.setTextColor(BLACK, WHITE);
+            display.setCursor(0, 20);
+            display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);  
-            display.print(">Counting time: ");
+            if (datamgr->cursor==1) display.print(">");
+            display.print("Cnt time:");
+            if(datamgr->cursor==1 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
             display.print(datamgr->GEIGER_TIME);
-            display.print(" sec");
-            display.setCursor(0, 35);
+            display.print("s");
+            display.setCursor(0, 30);
+            display.setTextColor(BLACK, WHITE);
     
-            if (datamgr->cursor==2) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Beep tone: ");
+            if (datamgr->cursor==2) display.print(">");
+            display.print("Beep tone:");
+            if(datamgr->cursor==2 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
             display.print(datamgr->ton_BUZZ);
-            display.setCursor(0, 45);
+            display.setCursor(0, 40);
+            display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==3) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Backlight: ");
+            if (datamgr->cursor==3) display.print(">");
+            display.print("Backlight:");
+            if(datamgr->cursor==3 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
             display.print(datamgr->backlight);
+            display.setTextColor(BLACK, WHITE);
         }break;
 
         case 3:{
-            if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">Settings");
-            display.setCursor(0, 25);
+            if (datamgr->cursor==0) display.print(">");
+            display.print("Settings");
+            display.setCursor(0, 20);
 
-            if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);  
-            display.print(">Dose");
-            display.setCursor(0, 35);
+            if (datamgr->cursor==1) display.print(">");
+            display.print("Dose");
+            display.setCursor(0, 30);
     
-            if (datamgr->cursor==2) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">All");
-            display.setCursor(0, 45);
+            if (datamgr->cursor==2) display.print(">");
+            display.print("All");
+            display.setCursor(0, 40);
         }break;
 
         case 4:{
-            if (datamgr->cursor==0) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);
-            display.print(">YES");
-            display.setCursor(0, 25);
+            if (datamgr->cursor==0) display.print(">");
+            display.print("YES");
+            display.setCursor(0, 20);
 
-            if (datamgr->cursor==1) display.setTextColor(WHITE, BLACK);
-            else display.setTextColor(BLACK, WHITE);  
-            display.print(">NO");
-            display.setCursor(0, 35);
+            if (datamgr->cursor==1) display.print(">");
+            display.print("NO");
+            display.setCursor(0, 30);
         }break;
 
     }

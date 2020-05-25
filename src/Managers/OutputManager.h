@@ -29,7 +29,7 @@ class OutputManager{
 
         //Нужна ссылка на data_manager - класс который хранит всю инфу, как о дисплее, так и о текущих значениях. Так же должен содержать все методы сохранения.
 
-        const char current_page_name[MENU_PAGES][13] = {"MAIN MENU", "MODE", "SETTINGS", "RESET", "ARE YOU SURE"};
+        const char current_page_name[MENU_PAGES][10] = {"MAIN MENU", "MODE", "SETTINGS", "RESET", "SURE?"};
 
         void draw_logo();
         void draw_main();

@@ -14,7 +14,7 @@ void DataManager::init(){
 	    GEIGER_TIME = eeprom_read_byte((uint8_t*)0b10);
 	    ton_BUZZ = eeprom_read_byte((uint8_t*)0b11);
 		backlight = eeprom_read_byte((uint8_t*)0b100);
-		contrast = eeprom_read_byte((uint8_t*)0b101);
+		//contrast = eeprom_read_byte((uint8_t*)0b101);
         update_rad_buffer();
     }
 }

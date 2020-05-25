@@ -38,9 +38,10 @@ class DataManager{
         //display
         byte cursor = 0;
         bool editing_mode = false;
+        bool saved = false;
         bool redraw_required = true;
 
-        byte contrast = 50;
+        byte contrast = 60;
         byte backlight = 0;
 
         int page = 0;

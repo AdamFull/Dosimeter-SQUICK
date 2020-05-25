@@ -1,59 +1,60 @@
 #include <Arduino.h>
-#include <EEPROM.h>
-#include <avr/wdt.h>
 #include <avr/power.h>
 #include <Libs/GyverButton.h>
 
 #include <macros.h>
+
 #include <Managers/OutputManager.h>
-
-/*TODO
-1. Придумать нормальное выключение
-2. Дисплей поставить на пин и включать через фет, так же как и эмитерный повторитель
-3. Раскидать код по классам
-4. Доработать код, оставить только побитовые операции.
-5. Убрать всё что имеется от ардуино ide
-6. Переписать библиотеку работы с экраном и оставить только необходимое
-7. Подумать насчёт измерения в зивертах
-8. Отвязать пищалку от задержек
-*/
-
-#define URLED_PIN 0
-#define MRLED_PIN 1
-#define RLED_PIN 2
-
-#define COUNTER_PIN 3
 
 GButton btn_reset(A4, HIGH_PULL, NORM_OPEN);
 GButton btn_set(A5, HIGH_PULL, NORM_OPEN);
 
 DataManager *datamgr = new DataManager();
-OutputManager outmgr(datamgr);
+OutputManager *outmgr = new OutputManager(datamgr);
+
+Adafruit_PCD8544 display = Adafruit_PCD8544(10, 9, 8, 7, 6);
 
 void button_action(void);
 void sleep(void);
 void(* resetFunc) (void) = 0;
 
 void setup() {
-	//wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
-	WDTCSR |= (1 << WDIE);				//Разрешить прерывания сторожевого таймера
-
+	Serial.begin(9600);
 	datamgr->init();
+	Serial.println("datamgr init ok");
 
 	btn_reset.setClickTimeout(10);
 	btn_set.setClickTimeout(10);
 	btn_reset.setTimeout(1000);
 	btn_set.setTimeout(1000);
 
-	//ACSR |= 1 << ACD; //отключаем компаратор
-
-	outmgr.init();
+	outmgr->init();
+	Serial.println("outmgr init ok");
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
 	TCCR1A=0; //OC1A/OC1B disconnected
 	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
 	TCNT1=TIMER1_PRELOAD;
+	Serial.println("Timer init ok");
+
+	PORTD_MODE(0, 0);
+	PORTD_WRITE(0, 0);
+
+	PORTD_MODE(1, 0);
+	PORTD_WRITE(1, 0);
+
+	PORTD_MODE(2, 1); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
+	PORTD_WRITE(2, 1); 						//подтягивающий резистор	
+
+	PORTD_MODE(3, 0); 						//pin 3 (PD3) как выход, блинк при засекании частицы
+	PORTD_WRITE(3, 0);
+
+	PORTD_MODE(5, 0); 						//pin 5 (PD5) как выход, звуковая индикация частицы
+	PORTD_WRITE(5, 0);
+
+	PORTB_MODE(3, 0); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_WRITE(3, 0);
 
 	PORTC_MODE(2, 0);						//pin A2 (PC2) как выход, земля экрана
 	PORTC_WRITE(2, 0);
@@ -61,27 +62,11 @@ void setup() {
 	PORTC_MODE(3, 0); 						//pin A3 (PC3) как выход, замля повторителя
 	PORTC_WRITE(3, 0);
 
-	PORTD_MODE(5, 0); 						//pin 5 (PD5) как выход, звуковая индикация частицы
-	PORTD_WRITE(5, 0);
-
-	PORTB_MODE(0, 0); 						//pin 8 (PB0) как выход, единица измерения микрорентген
-	PORTB_WRITE(0, 0);
-	PORTB_MODE(1, 0); 						//pin 9 (PB1) как выход, единица измерения миллирентген
-	PORTB_WRITE(1, 0);
-	PORTB_MODE(2, 0); 						//pin 10 (PB2) как выход, единица измерения рентген
-	PORTB_WRITE(2, 0);
-
-	PORTD_MODE(3, 0); 						//pin 3 (PD3) как выход, блинк при засекании частицы
-	PORTD_WRITE(3, 0);
-
-	PORTB_MODE(3, 0); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	PORTB_WRITE(3, 0);
-
-	PORTD_MODE(2, 1); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	PORTD_WRITE(2, 1); 						//подтягивающий резистор	
 
 	PORTC_WRITE(2, 1);						//Включить экран
 	PORTC_WRITE(3, 1);						//Включить эмиттерный повторитель
+
+	Serial.println("Outputs init ok");
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 	TCCR2B = 0b00000010;  // x8
@@ -93,17 +78,8 @@ void setup() {
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
+	Serial.println("All init ok");
 }
-
-/*ISR(WDT_vect){
-	if(wdt_counter > 0 && !is_sleeping){
-		wdt_counter--;
-		wdt_disable();
-	}else{
-		if(!is_sleeping) sleep();
-		else wdt_reset();
-	}
-}*/
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
 	if(datamgr->rad_buff[0]!=65535) datamgr->rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
@@ -152,9 +128,6 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 void sleep(){
 	if(!datamgr->is_sleeping){
 		analogWrite(11, 0);
-		PORTB_WRITE(MRLED_PIN, 0);
-		PORTB_WRITE(URLED_PIN, 0);
-		PORTB_WRITE(RLED_PIN, 0);
 		
 		datamgr->is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
@@ -199,6 +172,7 @@ void button_action(){
 	bool btn_set_isHolded = btn_set.isHolded();
 
 	bool menu_mode = datamgr->page == 2;
+	bool editing_mode = datamgr->editing_mode;
 
 	if(btn_reset.isHold() && btn_set.isHold()){
 		if(!menu_mode){
@@ -208,11 +182,14 @@ void button_action(){
 			btn_set.resetStates();
 		}
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
-		if(menu_mode && !datamgr->editing_mode) datamgr->page = 1;
-		if(datamgr->editing_mode) datamgr->editing_mode = false;
+		if(menu_mode && !editing_mode){
+			if(datamgr->menu_page == 0) datamgr->page = 1;
+			else datamgr->menu_page = 0;
+		}
+		if(editing_mode) datamgr->editing_mode = false;
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
-		if(menu_mode && !datamgr->editing_mode) datamgr->cursor--;
-		if(datamgr->editing_mode){
+		if(menu_mode && !editing_mode && datamgr->cursor > 0) datamgr->cursor--;
+		if(editing_mode){
 			switch (datamgr->cursor){
 				case 0:{ datamgr->pwm_converter--; }break;
 				case 1:{ datamgr->GEIGER_TIME--; }break;
@@ -221,7 +198,7 @@ void button_action(){
 			}
 		}
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
-		if(menu_mode && !datamgr->editing_mode) {
+		if(menu_mode && !editing_mode) {
 			switch (datamgr->menu_page){
 				case 0:{
 					switch (datamgr->cursor){
@@ -241,12 +218,9 @@ void button_action(){
 					datamgr->cursor = 0;
 				}break;
 				case 2:{
-					switch (datamgr->cursor){								//Тут курсор не сбрасывать, обездвижить
-						case 0:{ datamgr->editing_mode = true; }break;
-						case 1:{ datamgr->editing_mode = true; }break;
-						case 2:{ datamgr->editing_mode = true; }break;
-						case 3:{ datamgr->editing_mode = true; }break;
-					}
+					datamgr->editing_mode = true;
+					Serial.print("Set editing: ");
+					Serial.println(datamgr->editing_mode);
 				}break;
 				case 3:{
 					switch (datamgr->cursor){								//Стереть данные
@@ -264,22 +238,22 @@ void button_action(){
 					datamgr->cursor = 0;
 				}break;
 			}
-			if(datamgr->editing_mode){
-				datamgr->editing_mode = false;
-				datamgr->save_all();
-			}
+		}
+		if(menu_mode && editing_mode){
+			datamgr->editing_mode = false;
+			datamgr->save_all();
 		}
 	}else if(btn_set.isClick() && !btn_set_isHolded){					//Клик кнопки сет
-		if(menu_mode && !datamgr->editing_mode){						//Сдвинуть курсор, если можно
+		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
 			switch (datamgr->menu_page){
-				case 0:{ if(datamgr->cursor < 4) datamgr->cursor++; } break;
-				case 1:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
-				case 2:{ if(datamgr->cursor < 4) datamgr->cursor++; } break;
-				case 3:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
-				case 4:{ if(datamgr->cursor < 2) datamgr->cursor++; } break;
+				case 0:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
+				case 1:{ if(datamgr->cursor < 2) datamgr->cursor++; } break;
+				case 2:{ if(datamgr->cursor < 3) datamgr->cursor++; } break;
+				case 3:{ if(datamgr->cursor < 2) datamgr->cursor++; } break;
+				case 4:{ if(datamgr->cursor < 1) datamgr->cursor++; } break;
 			}
 		}
-		if(datamgr->editing_mode){										//Если редактируем
+		if(editing_mode){										//Если редактируем
 			switch (datamgr->cursor){
 				case 0:{ datamgr->pwm_converter++; }break;
 				case 1:{ datamgr->GEIGER_TIME++; }break;
@@ -298,7 +272,7 @@ void mode_handler(){
 			case 1:{} break;
 			case 2:{ datamgr->detected = true; } break;
 			case 3:{ analogWrite(11, datamgr->backlight); } break;
-			case 4:{ outmgr.set_contrast(datamgr->contrast); } break;
+			case 4:{ outmgr->set_contrast(datamgr->contrast); } break;
 		}
 	}
 }
@@ -306,8 +280,7 @@ void mode_handler(){
 void loop() {
 	if(!datamgr->is_sleeping){
 		mode_handler();
-		outmgr.update();
+		outmgr->update();
 	}
-	outmgr.update();
 	button_action();
 }
