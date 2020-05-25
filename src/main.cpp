@@ -308,5 +308,6 @@ void loop() {
 		mode_handler();
 		outmgr.update();
 	}
+	outmgr.update();
 	button_action();
 }
