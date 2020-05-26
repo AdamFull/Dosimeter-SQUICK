@@ -6,8 +6,6 @@
 
 #include <Managers/OutputManager.h>
 
-unsigned long dose_timer = 0;
-
 GButton btn_reset(A4, HIGH_PULL, NORM_OPEN);
 GButton btn_set(A5, HIGH_PULL, NORM_OPEN);
 
@@ -88,6 +86,7 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 	if(datamgr->rad_buff[0]!=65535) datamgr->rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
 	if(++datamgr->rad_sum>999999UL*3600/datamgr->GEIGER_TIME) datamgr->rad_sum=999999UL*3600/datamgr->GEIGER_TIME; //общая сумма импульсов
 	//if(wdt_counter < 255) wdt_counter++;
+	if(datamgr->stat < datamgr->GEIGER_TIME) datamgr->stat++;
 	datamgr->detected = true;
 }
 
@@ -315,8 +314,8 @@ void loop() {
 	}
 	button_action();
 
-	if(millis()-dose_timer > 65535){
-		dose_timer = millis();
+	if(datamgr->rad_dose - datamgr->rad_dose_old > 20){
+		datamgr->rad_dose_old = datamgr->rad_dose;
 		datamgr->save_dose();
 		datamgr->rad_max = datamgr->rad_back;
 	}

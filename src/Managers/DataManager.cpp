@@ -4,7 +4,8 @@
 void DataManager::update_rad_buffer() {
     rad_buff = new uint16_t[GEIGER_TIME];
 	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = (uint16_t)0; }
-	rad_back = rad_dose = rad_max = 0;
+	rad_back = rad_max = 0;
+	rad_dose = rad_dose_old;
 }
 
 void DataManager::init(){

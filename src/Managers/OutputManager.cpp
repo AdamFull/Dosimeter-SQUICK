@@ -61,9 +61,16 @@ void OutputManager::draw_main(){
         Serial.println(datamgr->battery_voltage);
     }
     int coeff = mapfloat(datamgr->battery_voltage, 3.0, 4.2, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
+    int stat = 100 - (datamgr->stat * 2.0);
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
+
+    display.setCursor(84 - (getNumOfDigits(stat)+2)*6, 13);
+    display.write(240);
+    display.print(stat);
+    display.print("%");
+
     display.setTextSize(2);
     display.setCursor(0, 8);
     if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000);
@@ -104,7 +111,7 @@ void OutputManager::draw_menu(){
     display.clearDisplay();
     display.setTextColor(WHITE, BLACK);
     display.fillRect(0, 0, 84, 8, BLACK);
-    display.setCursor((int16_t)((14 - header_size)/2)*8, 0);
+    display.setCursor((14 - header_size)*6/2, 0);
     display.print(page_name);
     display.drawFastHLine(0,8,83,BLACK);
     display.setCursor(0, 10);

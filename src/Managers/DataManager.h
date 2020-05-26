@@ -39,6 +39,10 @@ class DataManager{
         uint8_t time_min; //минуты
         uint8_t time_hrs; //часы
 
+        uint32_t rad_dose_old;
+
+        byte stat = 0;
+
         byte pwm_converter = 45;
 
         bool is_sleeping = false;
