@@ -66,40 +66,69 @@ void OutputManager::draw_main(){
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
 
-    display.setCursor(84 - (getNumOfDigits(stat)+2)*6, 13);
-    display.write(240);
-    display.print(stat);
-    display.print("%");
+    switch (datamgr->counter_mode){
+        case 0:{
+            display.setCursor(84 - (getNumOfDigits(stat)+2)*6, 13);
+            display.write(240);
+            display.print(stat);
+            display.print("%");
 
-    display.setTextSize(2);
-    display.setCursor(0, 8);
-    if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000);
-    else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000);
-    else display.print(datamgr->rad_back);
-    display.setTextSize(0);
-    display.setCursor(0, 23);
-    if(datamgr->rad_back > 1000) display.print("mR/h");
-    else if(datamgr->rad_back > 1000000) display.print("R/h");
-    else display.print("uR/h");
-    display.setCursor(84 - (getNumOfDigits(datamgr->rad_dose)+2)*6, 23);
-    if(datamgr->rad_dose > 1000) display.print((float)datamgr->rad_dose/1000);
-    else if(datamgr->rad_dose > 1000000) display.print((float)datamgr->rad_dose/1000000);
-    else display.print(datamgr->rad_dose);
-    if(datamgr->rad_dose > 1000) display.print("mR");
-    else if(datamgr->rad_dose > 1000000) display.print("R");
-    else display.print("uR");
-    display.drawFastHLine(0,32,84,BLACK);
-    
-    for(byte i=0;i<83;i++){
-        display.drawLine(i,47,i, 47-mass[i], BLACK);
-    }
-    if(millis()-tik_press>1000){
-        tik_press=millis();
-        mass[x_p]=map(datamgr->rad_back, 0, datamgr->rad_max < 40 ? 40 : datamgr->rad_max, 0, 15);
-        if(x_p<83)x_p++;
-        if(x_p==83){
-            for(byte i=0;i<83;i++)mass[i]=mass[i+1];
-        }
+            display.setTextSize(2);
+            display.setCursor(0, 8);
+            if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000);
+            else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000);
+            else display.print(datamgr->rad_back);
+            display.setTextSize(0);
+            display.setCursor(0, 23);
+            if(datamgr->rad_back > 1000) display.print("mR/h");
+            else if(datamgr->rad_back > 1000000) display.print("R/h");
+            else display.print("uR/h");
+            display.setCursor(84 - (getNumOfDigits(datamgr->rad_dose)+2)*6, 23);
+            if(datamgr->rad_dose > 1000) display.print((float)datamgr->rad_dose/1000);
+            else if(datamgr->rad_dose > 1000000) display.print((float)datamgr->rad_dose/1000000);
+            else display.print(datamgr->rad_dose);
+            if(datamgr->rad_dose > 1000) display.print("mR");
+            else if(datamgr->rad_dose > 1000000) display.print("R");
+            else display.print("uR");
+            display.drawFastHLine(0,32,84,BLACK);
+            
+            for(byte i=0;i<83;i++){
+                display.drawLine(i,47,i, 47-mass[i], BLACK);
+            }
+            if(millis()-tik_press>1000){
+                tik_press=millis();
+                mass[x_p]=map(datamgr->rad_back, 0, datamgr->rad_max < 40 ? 40 : datamgr->rad_max, 0, 15);
+                if(x_p<83)x_p++;
+                if(x_p==83){
+                    for(byte i=0;i<83;i++)mass[i]=mass[i+1];
+                }
+            }
+        }break;
+        case 1:{
+            display.setTextColor(BLACK, WHITE);
+            display.setCursor(0, 0);
+            if(!datamgr->next_step) display.print("back");
+            else display.print("sample");
+            display.setTextSize(2);
+            display.setCursor(0, 8);
+            if(datamgr->stop_timer && datamgr->next_step) display.print(abs((int)datamgr->rad_sum_mens_old - (int)datamgr->rad_sum_mens));
+            else display.print(datamgr->rad_sum_mens);
+            display.setTextSize(0);
+            display.setCursor(0, 23);
+            display.print(datamgr->time_mens_min);
+            display.print(":");
+            display.print(datamgr->time_mens_sec);
+            display.print(" remain");
+            display.drawFastHLine(0,32,84,BLACK);
+            display.fillRect(0, 34, map(datamgr->timer_remain, datamgr->timer_time, 0, 0, 84), 12, BLACK);
+            display.drawFastHLine(0,47,84,BLACK);
+            display.setTextColor(WHITE, BLACK);
+            display.setCursor(15, 36);
+            if(datamgr->stop_timer && !datamgr->next_step) display.print("Press set");
+            display.setCursor(20, 36);
+            if(datamgr->stop_timer && datamgr->next_step) display.print("Success");
+
+        }break;
     }
     display.display();
 }
@@ -141,11 +170,7 @@ void OutputManager::draw_menu(){
             display.setCursor(0, 20);
 
             if (datamgr->cursor==1) display.print(">");
-            display.print("Beta");
-            display.setCursor(0, 30);
-    
-            if (datamgr->cursor==2) display.print(">");
-            display.print("Gamma");
+            display.print("Activity");
         }break;
 
         case 2:{
@@ -197,8 +222,6 @@ void OutputManager::draw_menu(){
                 display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 40);
                 display.print(datamgr->backlight);
             }
-            
-            
             display.setTextColor(BLACK, WHITE);
         }break;
 
@@ -226,6 +249,12 @@ void OutputManager::draw_menu(){
             display.setCursor(0, 30);
         }break;
 
+        case 5:{
+            display.print("Time: ");
+            display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 20);
+            display.print(datamgr->editable);
+            display.print("m");
+        }break;
     }
     display.display();
 }

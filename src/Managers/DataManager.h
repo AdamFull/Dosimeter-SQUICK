@@ -25,41 +25,38 @@ class DataManager{
         void reset_dose();
         void reset_settings();
 
-        byte GEIGER_TIME = 37;
-        bool detected = false;
+        void reset_activity_test();
 
-        byte editable = 0;
+        byte GEIGER_TIME = 37;
+        byte contrast = 60;
+        bool backlight = 0;
+        byte pwm_converter = 45;
+        byte ton_BUZZ = 200; //тональность буззера
+
+        //-----------------------Флаги-----------------------
+        bool detected = false;              //флаг обнаружения частицы
+        bool is_sleeping = false;           //флаг сна
+        bool editing_mode = false;          //флаг редактирования
+        bool saved = false;                 //флаг сохранения
+        bool redraw_required = true;        //флаг отрисовки
+        bool stop_timer = false;
+        bool next_step = false;             //флаг для замера
 
         uint16_t *rad_buff;// = new uint16_t[GEIGER_TIME]; //массив секундных замеров для расчета фона
-        uint32_t rad_sum; //сумма импульсов за все время
-        uint32_t rad_back; //текущий фон
-        uint32_t rad_max; //максимум фона
-        uint32_t rad_dose; //доза
-        uint8_t time_sec; //секунды //счетчики времени
-        uint8_t time_min; //минуты
-        uint8_t time_hrs; //часы
-
-        uint32_t rad_dose_old;
+        uint32_t rad_sum, rad_back, rad_max, rad_dose, rad_dose_old; //сумма импульсов за все время/текущий фон/максимум фона/доза/предыдущая доза
+        uint8_t time_sec, time_min, time_hrs; //счетчики времени
+        uint8_t time_mens_sec = 1, time_mens_min = 0; //счетчики времени для замера
+        uint16_t timer_time, timer_remain;
+        uint32_t rad_sum_mens, rad_sum_mens_old; //сумма импульсов при измерении, Сумма импульсов с предыдущего замера(фон)
 
         byte stat = 0;
 
-        byte pwm_converter = 45;
-
-        bool is_sleeping = false;
-
-        byte ton_BUZZ = 200; //тональность буззера
-
         //display
         byte cursor = 0;
-        bool editing_mode = false;
-        bool saved = false;
-        bool redraw_required = true;
-
-        byte contrast = 60;
-        bool backlight = 0;
-
         int page = 0;
         int menu_page = 0;
+        byte counter_mode = 0;
+        byte editable = 0;
 
         float battery_voltage = 0;
         //display//

@@ -5,7 +5,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_PCD8544.h>
 
-#define MENU_PAGES 5
+#define MENU_PAGES 6
 
 #define min_rad 0
 
@@ -38,7 +38,7 @@ class OutputManager{
 
         //Нужна ссылка на data_manager - класс который хранит всю инфу, как о дисплее, так и о текущих значениях. Так же должен содержать все методы сохранения.
 
-        const char current_page_name[MENU_PAGES][10] = {"MAIN MENU", "MODE", "SETTINGS", "RESET", "SURE?"};
+        const char current_page_name[MENU_PAGES][10] = {"MAIN MENU", "MODE", "SETTINGS", "RESET", "SURE?", "ACTIVITY"};
 
         inline int mapfloat(float x, float in_min, float in_max, float out_min, float out_max){
             return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;

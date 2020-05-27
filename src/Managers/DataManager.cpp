@@ -6,6 +6,8 @@ void DataManager::update_rad_buffer() {
 	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = (uint16_t)0; }
 	rad_back = rad_max = 0;
 	rad_dose = rad_dose_old;
+	time_sec = time_min = time_hrs = 0;
+	rad_sum_mens = rad_sum_mens_old = 0;
 }
 
 void DataManager::init(){
@@ -82,4 +84,13 @@ void DataManager::reset_settings(void){
 	read_eeprom();
 	update_rad_buffer();
 	analogWrite(3, pwm_converter);
+}
+
+void DataManager::reset_activity_test(){
+	rad_sum_mens_old = 0;
+	rad_sum_mens = 0;
+	stop_timer = false;
+	next_step = false;
+	time_mens_sec = 0;
+	time_mens_min = 0;
 }
