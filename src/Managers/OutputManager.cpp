@@ -12,13 +12,10 @@ void OutputManager::init(){
 }
 
 void OutputManager::update(){
-    if(1/*datamgr->redraw_required*/){
-        switch (datamgr->page){
-            case 0: draw_logo(); datamgr->page = 1; break;
-            case 1: draw_main(); break;
-            case 2: draw_menu(); break;
-        }
-        datamgr->redraw_required = false;
+    switch (datamgr->page){
+        case 0: draw_logo(); datamgr->page = 1; break;
+        case 1: draw_main(); break;
+        case 2: draw_menu(); break;
     }
     beep();
 }
@@ -75,21 +72,16 @@ void OutputManager::draw_main(){
 
     switch (datamgr->counter_mode){
         case 0:{
-            display.setCursor(84 - (getNumOfDigits((int)datamgr->std)+1)*6, 13);
+            uint16_t deviation = 100*(datamgr->tinv_value*datamgr->std/sqrt(datamgr->GEIGER_TIME))/datamgr->mean;
+            if(deviation > 100) deviation = 100;
+            display.setCursor(84 - (getNumOfDigits(deviation)+2)*6, 13);
             display.write(240);
-            display.print((int)datamgr->std);
-            /*TODO*/
-            /*
-            Так как значения с плавающей точкой не попадают на экран полностью, следует:
-            сделать расчёт величины измерения, и сделать флаги величины измерения.
-            В зависимости от того, какая длина числа, производить сокращение десятых и сотых.
-            Когда длина числа 2 символа, убрать одно число после запятой,
-            если длина числа 3 символа то убрать запятую совсем.
-            */
+            display.print(deviation);
+            display.print("%");
             display.setTextSize(2);
             display.setCursor(0, 8);
-            if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000, 1);
-            else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000, 1);
+            if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000, getNumOfDigits(datamgr->rad_back/1000) > 2 ? 0 : 2);
+            else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000, getNumOfDigits(datamgr->rad_back/1000000) > 2 ? 0 : 2);
             else display.print(datamgr->rad_back);
             display.setTextSize(0);
             display.setCursor(0, 23);
@@ -186,53 +178,83 @@ void OutputManager::draw_menu(){
         }break;
 
         case 2:{
-            unsigned int hvoltage = adcmgr.get_hv();
-            if (datamgr->cursor==0) display.print(">");
-            display.print("Out HV:");
-            if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
-            display.setCursor(84 - (getNumOfDigits(hvoltage)+1)*6, 10);
-            display.print(hvoltage);
-            display.print("V");
-            display.setTextColor(BLACK, WHITE);
-            display.setCursor(0, 20);
-            display.setTextColor(BLACK, WHITE);
+            if(datamgr->cursor < 4){
+                unsigned int hvoltage = adcmgr.get_hv();
+                if (datamgr->cursor==0) display.print(">");
+                display.print("Out HV:");
+                if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
+                display.setCursor(84 - (getNumOfDigits(hvoltage)+1)*6, 10);
+                display.print(hvoltage);
+                display.print("V");
+                display.setTextColor(BLACK, WHITE);
+                display.setCursor(0, 20);
 
-            if (datamgr->cursor==1) display.print(">");
-            display.print("Cnt time:");
-            if(datamgr->cursor==1 && datamgr->editing_mode){
-                display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 20);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - (getNumOfDigits(datamgr->GEIGER_TIME)+1)*6, 20);
-                display.print(datamgr->GEIGER_TIME);
-            }
-            display.print("s");
-            display.setCursor(0, 30);
-            display.setTextColor(BLACK, WHITE);
-    
-            if (datamgr->cursor==2) display.print(">");
-            display.print("Beep tone:");
-            if(datamgr->cursor==2 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 30);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->ton_BUZZ)*6, 30);
-                display.print(datamgr->ton_BUZZ);
-            }
-            display.setCursor(0, 40);
-            display.setTextColor(BLACK, WHITE);
+                if (datamgr->cursor==1) display.print(">");
+                display.print("Cnt time:");
+                if(datamgr->cursor==1 && datamgr->editing_mode){
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 20);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - (getNumOfDigits(datamgr->GEIGER_TIME)+1)*6, 20);
+                    display.print(datamgr->GEIGER_TIME);
+                }
+                display.print("s");
+                display.setCursor(0, 30);
+                display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==3) display.print(">");
-            display.print("Backlight:");
-            if(datamgr->cursor==3 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 40);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
+                if (datamgr->cursor==2) display.print(">");
+                display.print("Error:");
+                if(datamgr->cursor==2 && datamgr->editing_mode){
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*6, 30);
+                    display.setTextColor(WHITE, BLACK);
+                    display.write(240);
+                    display.print(datamgr->editable, 1);
+                }else{
+                    display.setCursor(84 - (getNumOfDigits(datamgr->geiger_error)+2)*6, 30);
+                    display.write(240);
+                    display.print(datamgr->geiger_error, 1);
+                }
+                display.print("%");
+                display.setCursor(0, 40);
+                display.setTextColor(BLACK, WHITE);
+        
+                if (datamgr->cursor==3) display.print(">");
+                display.print("Beep tone:");
+                if(datamgr->cursor==3 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 40);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->ton_BUZZ)*6, 40);
+                    display.print(datamgr->ton_BUZZ);
+                }
+                display.setTextColor(BLACK, WHITE);    
             }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 40);
-                display.print(datamgr->backlight);
+                if (datamgr->cursor==4) display.print(">");
+                display.print("Backlight:");
+                if(datamgr->cursor==4 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 10);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 10);
+                    display.print(datamgr->backlight);
+                }
+                display.setCursor(0, 20);
+                display.setTextColor(BLACK, WHITE);
+
+                if (datamgr->cursor==5) display.print(">");
+                display.print("Contrast:");
+                if(datamgr->cursor==5 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 20);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->contrast)*6, 20);
+                    display.print(datamgr->contrast);
+                }
+                display.setTextColor(BLACK, WHITE);
             }
             display.setTextColor(BLACK, WHITE);
         }break;

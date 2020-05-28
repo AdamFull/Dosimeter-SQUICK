@@ -15,13 +15,9 @@ class DataManager{
 
     private:
         DataManager() {}
-        //DataManager(DataManager const&);
-        //void operator=(DataManager const&);
+
         
     public:
-        //DataManager(DataManager const&) = delete;
-        //void operator=(DataManager const&) = delete;
-
         void init();
         void setup_eeprom();
 
@@ -33,6 +29,7 @@ class DataManager{
         void save_bl();
         void save_contrast();
         void save_time();
+        void save_error();
 
         void read_eeprom();
 
@@ -41,9 +38,14 @@ class DataManager{
 
         void reset_activity_test();
 
-        void calc_mean();
         void calc_std();
+        void get_quantile();
 
+        /*Оптимизировать переменные, т.к. занимают слишком много оперативной памяти
+        */
+
+        byte geiger_error = 5;
+        float tinv_value = 0;
         byte GEIGER_TIME = 37;
         byte contrast = 60;
         bool backlight = 0;
@@ -55,7 +57,6 @@ class DataManager{
         bool is_sleeping = false;           //флаг сна
         bool editing_mode = false;          //флаг редактирования
         bool saved = false;                 //флаг сохранения
-        bool redraw_required = true;        //флаг отрисовки
         bool stop_timer = false;
         bool next_step = false;             //флаг для замера
         bool alarm = false;
@@ -76,8 +77,8 @@ class DataManager{
 
         //display
         byte cursor = 0;
-        int page = 0;
-        int menu_page = 0;
+        byte page = 0;
+        byte menu_page = 0;
         byte counter_mode = 0;
         byte editable = 0;
 
@@ -85,7 +86,6 @@ class DataManager{
         //display//
 
         byte has_eeprom = 1;
-        volatile byte wdt_counter;
 
         //-----------------------Измерение погрешности для статистики-----------------------
         float mean = 0;  //Математическое ожидание

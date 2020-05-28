@@ -24,8 +24,8 @@ void(* resetFunc) (void) = 0;
 
 void setup() {
 	Serial.begin(9600);
+
 	datamgr.init();
-	Serial.println("datamgr init ok");
 
 	btn_reset.setClickTimeout(100);
 	btn_set.setClickTimeout(100);
@@ -33,14 +33,12 @@ void setup() {
 	btn_set.setTimeout(1000);
 
 	outmgr.init();
-	Serial.println("outmgr init ok");
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
 	TCCR1A=0; //OC1A/OC1B disconnected
 	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
 	TCNT1=TIMER1_PRELOAD;
-	Serial.println("Timer init ok");
 
 	PORTD_MODE(0, 1);
 	PORTD_WRITE(0, 0);
@@ -70,7 +68,6 @@ void setup() {
 	PORTC_WRITE(2, 1);						//Включить экран
 	PORTC_WRITE(3, 1);						//Включить эмиттерный повторитель
 
-	Serial.println("Outputs init ok");
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 	TCCR2B = 0b00000010;  // x8
@@ -83,7 +80,6 @@ void setup() {
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
-	Serial.println("All init ok");
 }
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
@@ -107,8 +103,6 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 	if(++cnt1>=TIME_FACT){ //расчет показаний один раз в секунду
 		cnt1=0;
 
-		datamgr.redraw_required = true;
-
 		switch (datamgr.counter_mode){
 			case 0:{
 				uint32_t tmp_buff=0;
@@ -125,7 +119,6 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 				else datamgr.stat = 0;
 
 				datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
-				datamgr.calc_mean();
 				datamgr.calc_std();
 
 				if(datamgr.time_hrs<99){ //если таймер не переполнен
@@ -254,8 +247,10 @@ void button_action(){
 					switch (datamgr.cursor){
 						case 0:{ datamgr.editable = datamgr.pwm_converter; }break;
 						case 1:{ datamgr.editable = datamgr.GEIGER_TIME; }break;
-						case 2:{ datamgr.editable = datamgr.ton_BUZZ; }break;
-						case 3:{ datamgr.editable = datamgr.backlight; }break;
+						case 2:{ datamgr.editable = datamgr.geiger_error; }break;
+						case 3:{ datamgr.editable = datamgr.ton_BUZZ; }break;
+						case 4:{ datamgr.editable = datamgr.backlight; }break;
+						case 5:{ datamgr.editable = datamgr.contrast; }break;
 					}
 					datamgr.editing_mode = true;
 					Serial.print("Set editing: ");
@@ -292,9 +287,10 @@ void button_action(){
 				switch (datamgr.cursor){
 					case 0:{ datamgr.save_pwm(); }break;
 					case 1:{ datamgr.save_time(); }break;
-					case 2:{ datamgr.save_tone(); }break;
-					case 3:{ datamgr.save_bl(); }break;
-					case 4:{ datamgr.save_contrast(); }break;
+					case 2:{ datamgr.save_error(); }break;
+					case 3:{ datamgr.save_tone(); }break;
+					case 4:{ datamgr.save_bl(); }break;
+					case 5:{ datamgr.save_contrast(); }break;
 				}
 			}
 			datamgr.editing_mode = false;
@@ -321,7 +317,7 @@ void button_action(){
 			switch (datamgr.menu_page){
 				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
 				case 1:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
-				case 2:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
+				case 2:{ if(datamgr.cursor < 5) datamgr.cursor++; } break;
 				case 3:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
 				case 4:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
 			}
@@ -336,9 +332,10 @@ void mode_handler(){
 		switch (datamgr.cursor){
 			case 0:{ analogWrite(3, datamgr.editable); } break;
 			case 1:{} break;
-			case 2:{ datamgr.detected = true; } break;
-			case 3:{ analogWrite(11, !datamgr.editable); } break;
-			case 4:{ outmgr.set_contrast(datamgr.editable); } break;
+			case 2:{} break;
+			case 3:{ datamgr.detected = true; } break;
+			case 4:{ analogWrite(11, !datamgr.editable); } break;
+			case 5:{ outmgr.set_contrast(datamgr.editable); } break;
 		}
 	}
 }
@@ -367,8 +364,8 @@ void loop() {
 		Serial.println(datamgr.mean);
 		Serial.print("Standart deviation: ");
 		Serial.println(datamgr.std);
-		Serial.print("Stat: ");
-		Serial.println(datamgr.stat);
+		Serial.print("TINV: ");
+		Serial.println(datamgr.tinv_value);
 		Serial.println("--------------------------");
 	}
 
