@@ -7,8 +7,8 @@ void OutputManager::init(){
     display.setContrast(datamgr->contrast);
     display.display(); // show splashscreen
     display.clearDisplay();
-    adcmgr->adc_init();
-    for(int i = 0; i < 10; i++) datamgr->battery_voltage = adcmgr->get_battery_voltage();
+    adcmgr.adc_init();
+    for(int i = 0; i < 10; i++) datamgr->battery_voltage = adcmgr.get_battery_voltage();
 }
 
 void OutputManager::update(){
@@ -46,6 +46,14 @@ void OutputManager::beep() { //индикация каждой частички 
 	}
 }
 
+void OutputManager::do_alarm(){
+    if(millis()-datamgr->alarm_timer > 500){
+        datamgr->alarm_timer = millis();
+        PORTD_WRITE(5, datamgr->alarm_state);
+        datamgr->alarm_state = !datamgr->alarm_state;
+    }
+}
+
 void OutputManager::draw_logo(){
     display.clearDisplay();
     display.drawBitmap(0, 0, logo_Bitmap, 84, 48, BLACK);
@@ -57,26 +65,31 @@ void OutputManager::draw_main(){
     display.clearDisplay();
     if(millis()-voltage_update > 30000){
         voltage_update = millis();
-        datamgr->battery_voltage = adcmgr->get_battery_voltage();
+        datamgr->battery_voltage = adcmgr.get_battery_voltage();
         Serial.println(datamgr->battery_voltage);
     }
     int coeff = mapfloat(datamgr->battery_voltage, 3.0, 4.2, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
-    int stat = 100 - (datamgr->stat * 2.0);
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
 
     switch (datamgr->counter_mode){
         case 0:{
-            display.setCursor(84 - (getNumOfDigits(stat)+2)*6, 13);
+            display.setCursor(84 - (getNumOfDigits((int)datamgr->std)+1)*6, 13);
             display.write(240);
-            display.print(stat);
-            display.print("%");
-
+            display.print((int)datamgr->std);
+            /*TODO*/
+            /*
+            Так как значения с плавающей точкой не попадают на экран полностью, следует:
+            сделать расчёт величины измерения, и сделать флаги величины измерения.
+            В зависимости от того, какая длина числа, производить сокращение десятых и сотых.
+            Когда длина числа 2 символа, убрать одно число после запятой,
+            если длина числа 3 символа то убрать запятую совсем.
+            */
             display.setTextSize(2);
             display.setCursor(0, 8);
-            if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000);
-            else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000);
+            if(datamgr->rad_back > 1000) display.print((float)datamgr->rad_back/1000, 1);
+            else if(datamgr->rad_back > 1000000) display.print((float)datamgr->rad_back/1000000, 1);
             else display.print(datamgr->rad_back);
             display.setTextSize(0);
             display.setCursor(0, 23);
@@ -114,11 +127,10 @@ void OutputManager::draw_main(){
             if(datamgr->stop_timer && datamgr->next_step) display.print(abs((int)datamgr->rad_sum_mens_old - (int)datamgr->rad_sum_mens));
             else display.print(datamgr->rad_sum_mens);
             display.setTextSize(0);
-            display.setCursor(0, 23);
+            display.setCursor(30, 23);
             display.print(datamgr->time_mens_min);
             display.print(":");
             display.print(datamgr->time_mens_sec);
-            display.print(" remain");
             display.drawFastHLine(0,32,84,BLACK);
             display.fillRect(0, 34, map(datamgr->timer_remain, datamgr->timer_time, 0, 0, 84), 12, BLACK);
             display.drawFastHLine(0,47,84,BLACK);
@@ -174,7 +186,7 @@ void OutputManager::draw_menu(){
         }break;
 
         case 2:{
-            unsigned int hvoltage = adcmgr->get_hv();
+            unsigned int hvoltage = adcmgr.get_hv();
             if (datamgr->cursor==0) display.print(">");
             display.print("Out HV:");
             if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
@@ -251,7 +263,7 @@ void OutputManager::draw_menu(){
 
         case 5:{
             display.print("Time: ");
-            display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 20);
+            display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 10);
             display.print(datamgr->editable);
             display.print("m");
         }break;

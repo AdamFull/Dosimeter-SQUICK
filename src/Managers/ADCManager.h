@@ -6,7 +6,15 @@
 
 class ADCManager{
     public:
+        static ADCManager& getInstance()
+        {
+            static ADCManager instance; // Guaranteed to be destroyed.
+            return instance;                // Instantiated on first use.
+        }
+
+    private:
         ADCManager() {}
+    public:
         void adc_init();
         float get_battery_voltage();
         unsigned get_hv();

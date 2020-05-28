@@ -22,6 +22,8 @@ class OutputManager{
         inline void update_request(){ datamgr->redraw_required = true; }
 
         inline void set_contrast(byte contrast) { display.setContrast(contrast); }
+
+        void do_alarm();
     
     private:
         void delayUs(byte dtime);
@@ -33,7 +35,7 @@ class OutputManager{
         }
         
         DataManager *datamgr;
-        ADCManager *adcmgr = new ADCManager();
+        ADCManager &adcmgr = ADCManager::getInstance();
         Adafruit_PCD8544 display = Adafruit_PCD8544(10, 9, 8, 7, 6);
 
         //Нужна ссылка на data_manager - класс который хранит всю инфу, как о дисплее, так и о текущих значениях. Так же должен содержать все методы сохранения.

@@ -2,8 +2,12 @@
 #include <EEPROM.h>
 
 void DataManager::update_rad_buffer() {
+	delete(rad_buff);
+	delete(rad_buff_back);
     rad_buff = new uint16_t[GEIGER_TIME];
+	rad_buff_back = new uint16_t[GEIGER_TIME];
 	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = (uint16_t)0; }
+	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff_back[i] = (uint16_t)0; }
 	rad_back = rad_max = 0;
 	rad_dose = rad_dose_old;
 	time_sec = time_min = time_hrs = 0;
@@ -64,7 +68,6 @@ void DataManager::save_contrast(void){
 
 void DataManager::save_time(void){
 	GEIGER_TIME = editable;
-	delete(rad_buff);
 	EEPROM.put(0b101, GEIGER_TIME);
 	update_rad_buffer();
 }
@@ -93,4 +96,17 @@ void DataManager::reset_activity_test(){
 	next_step = false;
 	time_mens_sec = 0;
 	time_mens_min = 0;
+}
+
+void DataManager::calc_mean(){
+	uint32_t sum = 0;
+	for(unsigned i = 0; i < GEIGER_TIME; i++) sum+=rad_buff_back[i];
+	mean = (float)sum/GEIGER_TIME;
+}
+
+void DataManager::calc_std(){
+	uint32_t sum = 0;
+	for(unsigned i = 0; i < GEIGER_TIME; i++) sum+=pow(rad_buff_back[i] - mean, 2);
+	std = sqrt(sum/GEIGER_TIME-1);
+	if(std > 65535) std = 0;
 }
