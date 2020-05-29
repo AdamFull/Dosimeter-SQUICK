@@ -29,16 +29,8 @@ void OutputManager::delayUs(byte dtime){
 void OutputManager::beep() { //индикация каждой частички звуком светом
 	if(datamgr->detected){
 		datamgr->detected = false;
-    	int d = 30;
 		PORTB_WRITE(5, 1);
-    	while (d > 0) {
-      		PORTD_WRITE(5, 1);
-      		delayUs(datamgr->ton_BUZZ);
-      		PORTD_WRITE(5, 0);
-      		delayUs(datamgr->ton_BUZZ);
-	  		asm("nop");
-      		d--;
-    	}
+        tone(5, datamgr->ton_BUZZ*10, 5);
 		PORTB_WRITE(5, 0);
 	}
 }
@@ -46,8 +38,7 @@ void OutputManager::beep() { //индикация каждой частички 
 void OutputManager::do_alarm(){
     if(millis()-datamgr->alarm_timer > 500){
         datamgr->alarm_timer = millis();
-        PORTD_WRITE(5, datamgr->alarm_state);
-        datamgr->alarm_state = !datamgr->alarm_state;
+        tone(5, 3000, 300);
     }
 }
 
@@ -116,13 +107,13 @@ void OutputManager::draw_main(){
             else display.print("sample");
             display.setTextSize(2);
             display.setCursor(0, 8);
-            if(datamgr->stop_timer && datamgr->next_step) display.print(abs((int)datamgr->rad_sum_mens_old - (int)datamgr->rad_sum_mens));
-            else display.print(datamgr->rad_sum_mens);
+            if(datamgr->stop_timer && datamgr->next_step) display.print(abs((int)datamgr->rad_max - (int)datamgr->rad_back));
+            else display.print(datamgr->rad_back);
             display.setTextSize(0);
             display.setCursor(30, 23);
-            display.print(datamgr->time_mens_min);
+            display.print(datamgr->time_min);
             display.print(":");
-            display.print(datamgr->time_mens_sec);
+            display.print(datamgr->time_sec);
             display.drawFastHLine(0,32,84,BLACK);
             display.fillRect(0, 34, map(datamgr->timer_remain, datamgr->timer_time, 0, 0, 84), 12, BLACK);
             display.drawFastHLine(0,47,84,BLACK);
@@ -290,5 +281,15 @@ void OutputManager::draw_menu(){
             display.print("m");
         }break;
     }
+    display.display();
+}
+
+void OutputManager::going_to_sleep(){
+    display.clearDisplay();
+    display.setCursor(0, 0);
+    display.print("POWER OFF");
+    display.display();
+    delay(1000);
+    display.clearDisplay();
     display.display();
 }

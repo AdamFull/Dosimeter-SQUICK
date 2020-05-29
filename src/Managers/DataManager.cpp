@@ -4,14 +4,11 @@
 
 void DataManager::update_rad_buffer() {
 	delete []rad_buff;
-	delete []rad_buff_back;
     rad_buff = new uint16_t[GEIGER_TIME];
-	rad_buff_back = new uint16_t[GEIGER_TIME];
-	for(unsigned i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = 0; rad_buff_back[i] = 0; }
+	for(unsigned i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = 0;}
 	rad_back = rad_max = 0;
 	rad_dose = rad_dose_old;
-	time_sec = time_min = time_hrs = 0;
-	rad_sum_mens = rad_sum_mens_old = 0;
+	time_sec = time_min = 0;
 	get_quantile();
 }
 
@@ -100,26 +97,25 @@ void DataManager::reset_settings(void){
 }
 
 void DataManager::reset_activity_test(){
-	rad_sum_mens_old = 0;
-	rad_sum_mens = 0;
+	rad_max = 0;
+	rad_back = 0;
 	stop_timer = false;
 	next_step = false;
-	time_mens_sec = 0;
-	time_mens_min = 0;
+	time_sec = time_min = 0;
 }
 
 void DataManager::calc_std(){
-	uint32_t mean_sum = 0;
-	for(unsigned i = 0; i < GEIGER_TIME; i++) mean_sum+=rad_buff_back[i];
-	mean = (float)mean_sum/GEIGER_TIME;
-	uint32_t std_sum = 0;
-	for(unsigned i = 0; i < GEIGER_TIME; i++) std_sum+=pow(rad_buff_back[i] - mean, 2);
-	std = sqrt(std_sum/GEIGER_TIME-1);
+	uint32_t _sum = 0;
+	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=rad_buff[i];
+	mean = (float)_sum/GEIGER_TIME;
+	_sum = 0;
+	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=pow(rad_buff[i] - mean, 2);
+	std = sqrt(_sum/GEIGER_TIME-1);
 	//if(std > 65535) std = 0;
 }
 
 void DataManager::get_quantile(){
-	int true_percent = 100 - geiger_error;
+	byte true_percent = 100 - geiger_error;
 	byte required_k =  GEIGER_TIME - 1;
 	if(required_k >=50 && required_k < 100)	required_k = 49;
 	else if(required_k >=100 && required_k < 255) required_k = 50;

@@ -16,6 +16,7 @@ class OutputManager{
         void init();
         void update();
         void beep();
+        void going_to_sleep();
 
         inline void set_contrast(byte contrast) { display.setContrast(contrast); }
 

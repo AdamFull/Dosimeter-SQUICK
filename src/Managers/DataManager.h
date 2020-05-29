@@ -50,7 +50,7 @@ class DataManager{
         byte contrast = 60;
         bool backlight = 0;
         byte pwm_converter = 45;
-        byte ton_BUZZ = 200; //тональность буззера
+        byte ton_BUZZ = 20; //тональность буззера
 
         //-----------------------Флаги-----------------------
         bool detected = false;              //флаг обнаружения частицы
@@ -63,17 +63,11 @@ class DataManager{
 
         //-----------------------Всё что связано с замером-----------------------
         uint16_t *rad_buff; //массив секундных замеров для расчета фона
-        uint16_t *rad_buff_back;
         uint32_t rad_sum, rad_back, rad_max, rad_dose, rad_dose_old; //сумма импульсов за все время/текущий фон/максимум фона/доза/предыдущая доза
-        uint8_t time_sec, time_min, time_hrs; //счетчики времени
-        uint8_t time_mens_sec = 1, time_mens_min = 0; //счетчики времени для замера
+        uint8_t time_min_old, time_min, time_sec; //счетчики времени
         uint16_t timer_time, timer_remain;
-        uint32_t rad_sum_mens, rad_sum_mens_old; //сумма импульсов при измерении, Сумма импульсов с предыдущего замера(фон)
 
         unsigned long alarm_timer = 0;
-        bool alarm_state = false;
-
-        byte stat = 0;
 
         //display
         byte cursor = 0;

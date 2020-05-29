@@ -90,7 +90,7 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 			datamgr.detected = true;
 		}break;
 		case 1:{							//Режим измерения активности
-			if(!datamgr.stop_timer) if(++datamgr.rad_sum_mens>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum_mens=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
+			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
 		}break;
 	}
 }
@@ -110,35 +110,23 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 				if(tmp_buff>999999) tmp_buff=999999; //переполнение
 				datamgr.rad_back=tmp_buff;
 
+				datamgr.calc_std();
+
 				if(datamgr.rad_back>datamgr.rad_max) datamgr.rad_max=datamgr.rad_back; //фиксируем максимум фона
 
 				for(uint8_t k=datamgr.GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
 				datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
-				datamgr.rad_buff_back[datamgr.stat] = datamgr.rad_back;
-				if(datamgr.stat < datamgr.GEIGER_TIME) datamgr.stat++;
-				else datamgr.stat = 0;
 
 				datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
-				datamgr.calc_std();
-
-				if(datamgr.time_hrs<99){ //если таймер не переполнен
-					if(++datamgr.time_sec>59){ //считаем секунды
-						if(++datamgr.time_min>59){ //считаем минуты
-							if(++datamgr.time_hrs>99) datamgr.time_hrs=99; //часы
-							datamgr.time_min=0;
-						}
-						datamgr.time_sec=0;
-					}
-				}
 			}break;
 			case 1:{
 				bool stop_timer = datamgr.stop_timer;
 				if(!stop_timer){
-					if(datamgr.time_mens_min != 0 && datamgr.time_mens_sec == 0){
-						--datamgr.time_mens_min;
-						datamgr.time_mens_sec=60;
+					if(datamgr.time_min != 0 && datamgr.time_sec == 0){
+						--datamgr.time_min;
+						datamgr.time_sec=60;
 					} 
-					if(datamgr.time_mens_sec != 0){ --datamgr.time_mens_sec; }
+					if(datamgr.time_sec != 0){ --datamgr.time_sec; }
 					datamgr.timer_remain--;
 					if(datamgr.timer_remain == 0){
 						datamgr.stop_timer = true;
@@ -152,6 +140,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 
 void sleep(){
 	if(!datamgr.is_sleeping){
+		analogWrite(3, 0);
 		analogWrite(11, 0);
 		
 		datamgr.is_sleeping = true;
@@ -217,13 +206,20 @@ void button_action(){
 		if(!menu_mode && datamgr.counter_mode == 1){
 			datamgr.reset_activity_test();
 			datamgr.timer_remain = datamgr.timer_time;
-			datamgr.time_mens_min = datamgr.time_min;
+			datamgr.time_min = datamgr.time_min_old;
 		}
 	}else if(btn_reset.isDouble() && !btn_reset_isHolded){
 		if(editing_mode){ datamgr.editable+=5; }
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
-		if(menu_mode && !editing_mode && datamgr.cursor > 0) datamgr.cursor--;
-		if(editing_mode){ datamgr.editable--; }
+		if(menu_mode && !editing_mode && datamgr.cursor > 0) { tone(5, datamgr.ton_BUZZ*10, 10); datamgr.cursor--; }
+		if(editing_mode){ 
+			if(datamgr.cursor==2){
+				if(datamgr.editable < 1) datamgr.editable--;
+			}else if(datamgr.cursor==3){
+				tone(5, datamgr.editable*10, 5);
+				datamgr.editable--;
+			}else { datamgr.editable--; }
+		}
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(menu_mode && !editing_mode) {
 			switch (datamgr.menu_page){
@@ -239,7 +235,7 @@ void button_action(){
 				case 1:{
 					switch (datamgr.cursor){
 						case 0:{ datamgr.counter_mode = 0; datamgr.page = 1; }break;
-						case 1:{ datamgr.menu_page = 5; datamgr.editable = datamgr.time_mens_min; datamgr.editing_mode = true; }break;
+						case 1:{ datamgr.menu_page = 5; datamgr.editable = datamgr.time_min; datamgr.editing_mode = true; }break;
 					}
 					datamgr.cursor = 0;
 				}break;
@@ -266,8 +262,8 @@ void button_action(){
 				}break;
 				case 4:{
 					switch (datamgr.cursor){								//Вообще это диалог выбора, но пока что это не он
-						case 0:{ datamgr.menu_page = 0; }break;
-						case 1:{ sleep(); }break;
+						case 0:{ outmgr.going_to_sleep(); sleep(); }break;
+						case 1:{ datamgr.menu_page = 0; }break;
 					}
 					datamgr.cursor = 0;
 				}break;
@@ -276,9 +272,9 @@ void button_action(){
 		if(menu_mode && editing_mode){
 			if(datamgr.menu_page == 5){
 				datamgr.reset_activity_test();
-				datamgr.time_mens_min = datamgr.editable;
-				datamgr.time_min = datamgr.time_mens_min;
-				datamgr.timer_time = datamgr.time_mens_min * 60;
+				datamgr.time_min = datamgr.editable;
+				datamgr.time_min_old = datamgr.time_min;
+				datamgr.timer_time = datamgr.time_min * 60;
 				datamgr.timer_remain = datamgr.timer_time;
 				datamgr.menu_page = 0;
 				datamgr.counter_mode = 1;
@@ -299,21 +295,20 @@ void button_action(){
 		if(editing_mode){ datamgr.editable+=5; }
 	}else if(btn_set.isClick() && !btn_set_isHolded){					//Клик кнопки сет
 		if(!menu_mode && datamgr.counter_mode == 1 && !datamgr.next_step && datamgr.stop_timer){
-			datamgr.rad_sum_mens_old = datamgr.rad_sum_mens;
-			datamgr.rad_sum_mens = 0;
-			PORTD_WRITE(5, 0);
+			datamgr.rad_max = datamgr.rad_back;
+			datamgr.rad_back = 0;
 			datamgr.next_step = true;
 			datamgr.stop_timer = false;
 			datamgr.alarm = false;
-			datamgr.time_mens_min = datamgr.time_min;
+			datamgr.time_min = datamgr.time_min_old;
 			datamgr.timer_remain = datamgr.timer_time;
-			datamgr.time_mens_sec = 0;
+			datamgr.time_sec = 0;
 		}
 		if(!menu_mode && datamgr.counter_mode == 1 && datamgr.alarm && datamgr.next_step && datamgr.stop_timer){
 			datamgr.alarm = false;
-			PORTD_WRITE(5, 0);
 		}
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
+			tone(5, datamgr.ton_BUZZ*10, 10);
 			switch (datamgr.menu_page){
 				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
 				case 1:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
@@ -322,7 +317,14 @@ void button_action(){
 				case 4:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
 			}
 		}
-		if(editing_mode){ datamgr.editable++; }
+		if(editing_mode){ 
+			if(datamgr.cursor==2){
+				if(datamgr.editable < 40) datamgr.editable++;
+			}else if(datamgr.cursor==3){
+				tone(5, datamgr.editable*10, 5);
+				datamgr.editable++;
+			}else { datamgr.editable++; }
+		}
 	}
 }
 
@@ -333,14 +335,12 @@ void mode_handler(){
 			case 0:{ analogWrite(3, datamgr.editable); } break;
 			case 1:{} break;
 			case 2:{} break;
-			case 3:{ datamgr.detected = true; } break;
+			case 3:{} break;
 			case 4:{ analogWrite(11, !datamgr.editable); } break;
 			case 5:{ outmgr.set_contrast(datamgr.editable); } break;
 		}
 	}
 }
-
-unsigned long debug_timer = 0;
 
 void loop() {
 	if(!datamgr.is_sleeping){
@@ -349,33 +349,15 @@ void loop() {
 	}
 	button_action();
 
-	if(millis()-debug_timer > 3000){
-		debug_timer = millis();
-		Serial.println("--------------------------");
-		Serial.print("Counting mode: ");
-		Serial.println(datamgr.counter_mode);
-		Serial.print("Page: ");
-		Serial.println(datamgr.page);
-		Serial.print("Menu page: ");
-		Serial.println(datamgr.menu_page);
-		Serial.print("Editing mode: ");
-		Serial.println(datamgr.editing_mode);
-		Serial.print("Expected value: ");
-		Serial.println(datamgr.mean);
-		Serial.print("Standart deviation: ");
-		Serial.println(datamgr.std);
-		Serial.print("TINV: ");
-		Serial.println(datamgr.tinv_value);
-		Serial.println("--------------------------");
-	}
-
 	if(datamgr.alarm){
 		outmgr.do_alarm();
 	}
 
-	if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
-		datamgr.rad_dose_old = datamgr.rad_dose;
-		datamgr.save_dose();
-		datamgr.rad_max = datamgr.rad_back;
+	if(datamgr.counter_mode!=1){
+		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
+			datamgr.rad_dose_old = datamgr.rad_dose;
+			datamgr.save_dose();
+			datamgr.rad_max = datamgr.rad_back;
+		}
 	}
 }
