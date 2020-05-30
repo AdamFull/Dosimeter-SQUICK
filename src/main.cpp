@@ -40,33 +40,33 @@ void setup() {
 	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
 	TCNT1=TIMER1_PRELOAD;
 
-	PORTD_MODE(0, 1);
-	PORTD_WRITE(0, 0);
+	PORTD_MODE(0, OUTPUT);
+	PORTD_WRITE(0, LOW);
 
-	PORTD_MODE(1, 1);
-	PORTD_WRITE(1, 0);
+	PORTD_MODE(1, OUTPUT);
+	PORTD_WRITE(1, LOW);
 
-	PORTD_MODE(2, 0); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	PORTD_WRITE(2, 1); 						//подтягивающий резистор	
+	PORTD_MODE(2, INPUT); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
+	PORTD_WRITE(2, HIGH); 						//подтягивающий резистор	
 
-	PORTD_MODE(3, 1); 						//pin 3 (PD3) как выход, блинк при засекании частицы
-	PORTD_WRITE(3, 0);
+	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
+	PORTD_WRITE(3, LOW);
 
-	PORTD_MODE(5, 1); 						//pin 5 (PD5) как выход, звуковая индикация частицы
-	PORTD_WRITE(5, 0);
+	PORTD_MODE(5, OUTPUT); 						//pin 5 (PD5) как выход, звуковая индикация частицы
+	PORTD_WRITE(5, LOW);
 
-	PORTB_MODE(3, 1); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	PORTB_WRITE(3, 0);
+	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_WRITE(3, LOW);
 
-	PORTC_MODE(2, 1);						//pin A2 (PC2) как выход, земля экрана
-	PORTC_WRITE(2, 0);
+	PORTC_MODE(2, OUTPUT);						//pin A2 (PC2) как выход, земля экрана
+	PORTC_WRITE(2, LOW);
 
-	PORTC_MODE(3, 1); 						//pin A3 (PC3) как выход, замля повторителя
-	PORTC_WRITE(3, 0);
+	PORTC_MODE(3, OUTPUT); 						//pin A3 (PC3) как выход, замля повторителя
+	PORTC_WRITE(3, LOW);
 
 
-	PORTC_WRITE(2, 1);						//Включить экран
-	PORTC_WRITE(3, 1);						//Включить эмиттерный повторитель
+	PORTC_WRITE(2, HIGH);						//Включить экран
+	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
 
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11

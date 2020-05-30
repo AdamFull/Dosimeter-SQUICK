@@ -1,5 +1,10 @@
 #pragma once
 
+#define OUTPUT 1
+#define INPUT 0
+#define HIGH 1
+#define LOW 0
+
 #define PORTB_MODE(pin, mode) mode ? DDRB |= (1<<pin) : DDRB&=~(1<<pin)
 #define PORTC_MODE(pin, mode) mode ? DDRC |= (1<<pin) : DDRC&=~(1<<pin)
 #define PORTD_MODE(pin, mode) mode ? DDRD |= (1<<pin) : DDRD&=~(1<<pin)
