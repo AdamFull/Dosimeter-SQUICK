@@ -66,7 +66,9 @@ void setup() {
 
 
 	TCCR2B = 0b00000010;  // x8
-	TCCR2A = 0b00000011;  // fast pwm
+    TCCR2A = 0b00000001;  // phase correct
+	//TCCR2B = 0b00000010;  // x8
+	//TCCR2A = 0b00000011;  // fast pwm
 	//TCCR2B = 0b00000001;  // x1
 	//TCCR2A = 0b00000011;  // fast pwm
 
@@ -78,23 +80,26 @@ void setup() {
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
+	datamgr.end_init = true;
 }
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
-	if(!datamgr.counter_mode){    //Режим поиска	
-	if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
-	#if defined(UNIVERSAL_COUNTER)
-		if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
-	#else
-		if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
-	#endif
-	if(datamgr.page == 1) datamgr.detected = true;
-	}else{							//Режим измерения активности
-	#if defined(UNIVERSAL_COUNTER)
-		if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
-	#else
-		if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
-	#endif
+	if(datamgr.end_init){
+		if(!datamgr.counter_mode){    //Режим поиска	
+		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
+		#if defined(UNIVERSAL_COUNTER)
+			if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
+		#else
+			if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
+		#endif
+		if(datamgr.page == 1) datamgr.detected = true;
+		}else{							//Режим измерения активности
+		#if defined(UNIVERSAL_COUNTER)
+			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
+		#else
+			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
+		#endif
+		}
 	}
 }
 
@@ -217,7 +222,7 @@ void button_action(){
 		btn_set.resetStates();
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
 		if(menu_mode && !editing_mode){
-			tone(5, 5000, 20); delay(50); tone(5, 1000, 30);
+			datamgr.detected = true;
 			if(datamgr.menu_page == 0) datamgr.page = 1;
 			else if(datamgr.menu_page == 6) datamgr.menu_page = 2;
 			else if(datamgr.menu_page == 7) datamgr.menu_page = 6;
@@ -225,7 +230,7 @@ void button_action(){
 			datamgr.cursor = 0;
 		}
 		if(editing_mode){
-			tone(5, 1000, 20); delay(50); tone(5, 500, 30);
+			datamgr.detected = true;
 			datamgr.editing_mode = false;
 		}
 		if(!menu_mode && datamgr.counter_mode == 1){
@@ -234,7 +239,7 @@ void button_action(){
 			datamgr.time_min = datamgr.time_min_old;
 		}
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
-		if(menu_mode && !editing_mode && datamgr.cursor > 0) { tone(5, 5000, 10); datamgr.cursor--; }
+		if(menu_mode && !editing_mode && datamgr.cursor > 0) { datamgr.detected = true; datamgr.cursor--; }
 		if(editing_mode){ 
 			if(datamgr.menu_page == 2){
 				#if defined(UNIVERSAL_COUNTER)
@@ -262,7 +267,7 @@ void button_action(){
 		}
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(menu_mode && !editing_mode) {
-			tone(5, 1000, 20); delay(50); tone(5, 5000, 30);
+			datamgr.detected = true;
 			switch (datamgr.menu_page){
 				case 0:{
 					switch (datamgr.cursor){
@@ -357,7 +362,7 @@ void button_action(){
 			}
 		}
 		if(menu_mode && editing_mode){
-			tone(5, 5000, 20); delay(50); tone(5, 8000, 30);
+			datamgr.detected = true;
 			if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
 					case 0:{ datamgr.time_min = datamgr.editable; }break;
@@ -403,7 +408,7 @@ void button_action(){
 			datamgr.alarm = false;
 		}
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
-			tone(5, 5000, 10);
+			datamgr.detected = true;
 			switch (datamgr.menu_page){
 				#if defined(CAN_SLEEP)
 				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;

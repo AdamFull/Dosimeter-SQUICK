@@ -16,7 +16,7 @@ unsigned ADCManager::get_hv()
 {
 	//ADCSRA |= (1 << ADEN);
 	sensorValue = (sensorValue * (avgFactor - 1) + adc1_read()) / avgFactor;
-	return (TARGET_VOLTAGE*sensorValue/DIVIDER);
+	return (sensorValue);
 	//ADCSRA &= ~(1 << ADEN);
 }
 

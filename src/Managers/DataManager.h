@@ -80,6 +80,7 @@ class DataManager{
         bool stop_timer = false;
         bool next_step = false;             //флаг для замера
         bool alarm = false;
+        bool end_init = false;
 
         //-----------------------Всё что связано с замером-----------------------
         #if defined(UNIVERSAL_COUNTER)

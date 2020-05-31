@@ -28,6 +28,6 @@ class ADCManager{
         int adc0_read();
         int adc1_read();
 
-        const uint8_t avgFactor = 5;
+        const uint8_t avgFactor = 10;
         int sensorValue = 0;
 };

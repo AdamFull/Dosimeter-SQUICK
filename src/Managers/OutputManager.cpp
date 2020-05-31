@@ -29,16 +29,24 @@ void OutputManager::delayUs(byte dtime){
 void OutputManager::beep() { //индикация каждой частички звуком светом
 	if(datamgr->detected){
 		datamgr->detected = false;
-		PORTB_WRITE(5, HIGH);
-        //tone(5, datamgr->ton_BUZZ*10, 5);
-		PORTB_WRITE(5, LOW);
+		int d = 30;
+			PORTB_WRITE(5, 1);
+    		while (d > 0) {
+      			PORTD_WRITE(5, 1);
+      			delayUs(datamgr->ton_BUZZ);
+      			PORTD_WRITE(5, 0);
+      			delayUs(datamgr->ton_BUZZ);
+	  			asm("nop");
+      			d--;
+    		}
+			PORTB_WRITE(5, 0);
 	}
 }
 
 void OutputManager::do_alarm(){
     if(millis()-datamgr->alarm_timer > 500){
         datamgr->alarm_timer = millis();
-        tone(5, 3000, 300);
+        datamgr->detected = true;
     }
 }
 
@@ -334,7 +342,7 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            unsigned int hvoltage = datamgr->editable;//adcmgr.get_hv();
+            unsigned int hvoltage = datamgr->editable;
             if (datamgr->cursor==0) display.print(T_CURSOR);
             display.print(VOLTAGE);
             if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
