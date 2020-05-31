@@ -30,7 +30,7 @@ void OutputManager::beep() { //индикация каждой частички 
 	if(datamgr->detected){
 		datamgr->detected = false;
 		PORTB_WRITE(5, HIGH);
-        tone(5, datamgr->ton_BUZZ*10, 5);
+        //tone(5, datamgr->ton_BUZZ*10, 5);
 		PORTB_WRITE(5, LOW);
 	}
 }
@@ -334,7 +334,7 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            unsigned int hvoltage = adcmgr.get_hv();
+            unsigned int hvoltage = datamgr->editable;//adcmgr.get_hv();
             if (datamgr->cursor==0) display.print(T_CURSOR);
             display.print(VOLTAGE);
             if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);

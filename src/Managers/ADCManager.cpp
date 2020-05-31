@@ -4,8 +4,6 @@
 void ADCManager::adc_init(){
     ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
-	TCCR2B = 0b00000010;  // x8
-	TCCR2A = 0b00000011;  // fast pwm
 }
 
 float ADCManager::get_battery_voltage(){

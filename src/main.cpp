@@ -65,11 +65,16 @@ void setup() {
 	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
 
 
+	TCCR2B = 0b00000010;  // x8
+	TCCR2A = 0b00000011;  // fast pwm
+	//TCCR2B = 0b00000001;  // x1
+	//TCCR2A = 0b00000011;  // fast pwm
+
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	ADCManager::pwm_PD3(datamgr.pwm_converter);
-	if(datamgr.backlight) ADCManager::pwm_PB3(255);
-	else ADCManager::pwm_PB3(0);
+	//ADCManager::pwm_PD3(datamgr.pwm_converter);
+	//ADCManager::pwm_PB3(datamgr.pwm_converter);
+	analogWrite(3, datamgr.pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -463,7 +468,7 @@ void mode_handler(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ ADCManager::pwm_PD3(datamgr.editable); } break;
+					case 0:{ analogWrite(3, datamgr.pwm_converter); } break;
 					case 1:{} break;
 					case 2:{} break;
 				}
@@ -484,6 +489,8 @@ void loop() {
 	if(datamgr.alarm){
 		outmgr.do_alarm();
 	}
+
+	analogWrite(3, datamgr.pwm_converter);
 
 	if(datamgr.counter_mode!=1){
 		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
