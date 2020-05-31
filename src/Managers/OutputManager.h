@@ -1,22 +1,23 @@
 #pragma once
 #include <Managers/DataManager.h>
 #include <Managers/ADCManager.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_PCD8544.h>
-
-#define min_rad 0
+#include <configuration.h>
+#include <Adafruit_GFX_rus.h>
+#include <Adafruit_PCD8544_rus.h>
 
 class OutputManager{
     public:
         OutputManager(DataManager *datamgr){
             this->datamgr = datamgr;
-            for(int i = 0; i < 83; i++) mass[i] = 0;
         }
         void init();
         void update();
         void beep();
+        #if defined(CAN_SLEEP)
         void going_to_sleep();
+        #else
+        inline void going_to_sleep() {}
+        #endif
 
         inline void set_contrast(byte contrast) { display.setContrast(contrast); }
 
@@ -24,8 +25,6 @@ class OutputManager{
     
     private:
         void delayUs(byte dtime);
-
-        const char* const current_page_name[10] = {"MAIN MENU", "MODE", "SETTINGS", "RESET", "SURE?", "ACTIVITY"};
 
         int getNumOfDigits(uint32_t number){
             int digits=1; uint32_t num = number;
@@ -41,10 +40,7 @@ class OutputManager{
             return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
         }
 
-        unsigned long tik_press = 0, voltage_update = 0;
-        byte mass[84];
-
-        byte x_p = 0;
+        unsigned long voltage_update = 0;
 
         void draw_logo();
         void draw_main();

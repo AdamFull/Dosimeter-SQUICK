@@ -1,5 +1,4 @@
 #pragma once
-#include <Arduino.h>
 
 /*
 	GyverButton - библиотека для многофункциональной отработки нажатия кнопки. Возможности:
@@ -27,7 +26,6 @@
 typedef struct {		
 	bool btn_deb: 1;	
 	bool hold_flag: 1;
-	bool counter_flag: 1;
 	bool isHolded_f: 1;
 	bool isRelease_f: 1;
 	bool isPress_f: 1;
@@ -41,6 +39,12 @@ typedef struct {
 	bool noPin: 1;
 } GyverButtonFlags;
 #pragma pack(pop)
+
+typedef bool boolean;
+typedef signed int int8_t __attribute__((__mode__(__QI__)));
+typedef unsigned int uint16_t __attribute__ ((__mode__ (__HI__)));
+typedef unsigned int uint8_t __attribute__((__mode__(__QI__)));
+typedef unsigned int uint32_t __attribute__ ((__mode__ (__SI__)));
 
 #define BTN_NO_PIN -1
 #define HIGH_PULL 0
@@ -87,16 +91,6 @@ class GButton {
     boolean isHolded();		// возвращает true при удержании дольше timeout. Сбрасывается после вызова
 	boolean isHold();		// возвращает true при нажатой кнопке, не сбрасывается
 	boolean state();		// возвращает состояние кнопки
-
-	boolean isSingle();		// возвращает true при одиночном клике. Сбрасывается после вызова
-	boolean isDouble();		// возвращает true при двойном клике. Сбрасывается после вызова
-	boolean isTriple();		// возвращает true при тройном клике. Сбрасывается после вызова
-	
-	boolean hasClicks();	// проверка на наличие кликов. Сбрасывается после вызова
-	uint8_t getClicks();	// вернуть количество кликов
-	uint8_t getHoldClicks();// вернуть количество кликов, предшествующее удерживанию
-	
-	boolean isStep(byte clicks = 0); // возвращает true по таймеру setStepTimeout, смотри пример
 	
 	void resetStates();		// сбрасывает все is-флаги и счётчики
 	
@@ -106,7 +100,6 @@ class GButton {
 	uint16_t _debounce = 100;
 	uint16_t _timeout = 500;
 	uint16_t _click_timeout = 500;
-	uint16_t _step_timeout = 400;
 	uint8_t btn_counter = 0, last_counter = 0, last_hold_counter = 0;
 	uint32_t btn_timer = 0;	
 	bool btn_state = false;
