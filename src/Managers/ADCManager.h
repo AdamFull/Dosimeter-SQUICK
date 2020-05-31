@@ -1,5 +1,7 @@
 #pragma once
-#include <Arduino.h>
+#include <stdint.h>
+
+typedef uint8_t byte;
 
 #define TARGET_VOLTAGE 400				//Требуемое напряжение
 #define DIVIDER 883						//Значение ацп делителя напряжения
@@ -18,6 +20,9 @@ class ADCManager{
         void adc_init();
         float get_battery_voltage();
         unsigned get_hv();
+
+        static void pwm_PD3(byte pwm);
+        static void pwm_PB3(byte pwm);
 
     private:
         int adc0_read();

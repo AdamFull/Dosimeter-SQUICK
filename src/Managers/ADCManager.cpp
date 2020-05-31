@@ -1,7 +1,11 @@
 #include <Managers/ADCManager.h>
+#include <avr/io.h>
 
 void ADCManager::adc_init(){
     ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
+	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
+	TCCR2B = 0b00000010;  // x8
+	TCCR2A = 0b00000011;  // fast pwm
 }
 
 float ADCManager::get_battery_voltage(){
@@ -31,3 +35,6 @@ int ADCManager::adc0_read(){
 	while ((ADCSRA & (1 << ADIF)) == 0); // пока не будет выставлен флаг об окончании преобразования
 	return (ADCL | ADCH<<8);
 }
+
+void ADCManager::pwm_PD3(byte pwm) { OCR2B = pwm; }
+void ADCManager::pwm_PB3(byte pwm) { OCR2A = pwm; }

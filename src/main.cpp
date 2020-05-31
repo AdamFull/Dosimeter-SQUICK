@@ -65,14 +65,11 @@ void setup() {
 	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
 
 
-	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
-	TCCR2B = 0b00000010;  // x8
-	TCCR2A = 0b00000011;  // fast pwm
-
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(3, datamgr.pwm_converter);
-	analogWrite(11, !datamgr.backlight);
+	ADCManager::pwm_PD3(datamgr.pwm_converter);
+	if(datamgr.backlight) ADCManager::pwm_PB3(255);
+	else ADCManager::pwm_PB3(0);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -159,8 +156,8 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 #if defined(CAN_SLEEP)
 void sleep(){
 	if(!datamgr.is_sleeping){
-		analogWrite(3, 0);
-		analogWrite(11, 0);
+		ADCManager::pwm_PD3(0);
+		ADCManager::pwm_PB3(0);
 		
 		datamgr.is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
@@ -459,14 +456,14 @@ void mode_handler(){
 			if(datamgr.menu_page == 2){
 				switch (datamgr.cursor){
 					case 1:{} break;
-					case 2:{ analogWrite(11, datamgr.editable); } break;
+					case 2:{ ADCManager::pwm_PB3(datamgr.editable ? 255 : 0); } break;
 					case 3:{ outmgr.set_contrast(datamgr.editable); } break;
 				}
 			}
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ analogWrite(3, datamgr.editable); } break;
+					case 0:{ ADCManager::pwm_PD3(datamgr.editable); } break;
 					case 1:{} break;
 					case 2:{} break;
 				}
