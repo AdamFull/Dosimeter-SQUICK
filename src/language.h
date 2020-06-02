@@ -22,6 +22,7 @@ static PGM_P const ALL PROGMEM = "Bce";
 static PGM_P const TIME PROGMEM = "Bpeмя:";
 static PGM_P const MEANS PROGMEM = "Измepeний:";
 static PGM_P const BEGIN PROGMEM = "Haчaть";
+static PGM_P const MODE_SEC PROGMEM = "Секунда";
 #if defined(UNIVERSAL_COUNTER)
 static PGM_P const GCOUNTER PROGMEM = "Cчeтчиk";
 static PGM_P const CUSTOM PROGMEM = "Cвoй";
@@ -54,6 +55,7 @@ static PGM_P const ALL PROGMEM = "All";
 static PGM_P const TIME PROGMEM = "Time:";
 static PGM_P const MEANS PROGMEM = "Meansure:";
 static PGM_P const BEGIN PROGMEM = "Begin";
+static PGM_P const MODE_SEC PROGMEM = "One sec";
 #if defined(UNIVERSAL_COUNTER)
 static PGM_P const GCOUNTER PROGMEM = "Counter";
 static PGM_P const CUSTOM PROGMEM = "Custom";
@@ -73,6 +75,7 @@ static PGM_P const T_RH PROGMEM = "R/h";
 static PGM_P const T_UR PROGMEM = "uR";
 static PGM_P const T_MR PROGMEM = "mR";
 static PGM_P const T_R PROGMEM = "R";
+static PGM_P const T_CPS PROGMEM = "cps";
 
 static PGM_P const T_CURSOR PROGMEM = ">";
 

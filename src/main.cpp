@@ -87,7 +87,7 @@ void setup() {
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
 	if(datamgr.end_init){
-		if(!datamgr.counter_mode){    //Режим поиска	
+		if(datamgr.counter_mode==0){    //Режим поиска	
 		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
 		#if defined(UNIVERSAL_COUNTER)
 			if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
@@ -95,14 +95,16 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 			if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
 		#endif
 		if(datamgr.page == 1) datamgr.detected = true;
-		}else{							//Режим измерения активности
+		}else if(datamgr.counter_mode==1){							//Режим измерения активности
 		#if defined(UNIVERSAL_COUNTER)
 			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
 		#else
 			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
 		#endif
+		}else if(datamgr.counter_mode==2){							//Режим измерения активности
+			if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер	
 		}
-		if(!datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
+		if(datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
 	}
 }
 
@@ -114,7 +116,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 	if(++cnt1>=TIME_FACT){ //расчет показаний один раз в секунду
 		cnt1=0;
 
-		if(!datamgr.counter_mode){
+		if(datamgr.counter_mode == 0){
 			uint32_t tmp_buff=0;
 			#if defined(UNIVERSAL_COUNTER)
 			for(uint8_t i=0; i<datamgr.GEIGER_TIME; i++) tmp_buff+=datamgr.rad_buff[i]; //расчет фона мкР/ч
@@ -148,15 +150,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			datamgr.rad_dose=(datamgr.rad_sum*GEIGER_TIME/3600); //расчитаем дозу
 			#endif
 
-			//Отрисовка графика раз в секунду
-			#if defined(DRAW_GRAPH)
-			datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
-            if(datamgr.x_p<83)datamgr.x_p++;
-            if(datamgr.x_p==83){
-                for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
-            }
-			#endif
-		}else{
+		}else if(datamgr.counter_mode == 1){
 			//ТАймер для второго режима. Обратный отсчёт
 			bool stop_timer = datamgr.stop_timer;
 			if(!stop_timer){
@@ -171,6 +165,24 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 					datamgr.alarm = true;
 				}
 			}
+		}else if(datamgr.counter_mode == 2){
+			//Секундный замер, сбрасываем счётчик каждую секунду
+			//if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
+			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
+		}
+		if(datamgr.counter_mode != 1){
+			//Отрисовка графика раз в секунду
+			#if defined(DRAW_GRAPH)
+			if(datamgr.counter_mode == 2){
+				datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max, 0, 15);
+			}else{	
+				datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
+			}
+            if(datamgr.x_p<83)datamgr.x_p++;
+            if(datamgr.x_p==83){
+                for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
+            }
+			#endif
 		}
 	}
 }
@@ -296,6 +308,11 @@ void button_action(){
 					switch (datamgr.cursor){
 						case 0:{ datamgr.counter_mode = 0; datamgr.page = 1; }break;
 						case 1:{ datamgr.menu_page = 4; }break;
+						case 2:{ datamgr.counter_mode = 2; datamgr.page = 1; 
+						#if defined(DRAW_GRAPH)
+							for(int i = 0; i < 83; i++) datamgr.mass[i] = 0;
+						#endif
+						}break;
 					}
 					datamgr.cursor = 0;
 				}break;
@@ -427,7 +444,7 @@ void button_action(){
 				#else
 				case 0:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
 				#endif
-				case 1:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
+				case 1:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
 				#if defined(UNIVERSAL_COUNTER)
 				case 2:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
 				#else
@@ -517,7 +534,7 @@ void loop() {
 
 	if(!datamgr.editing_mode) analogWrite(3, datamgr.pwm_converter);
 
-	if(datamgr.counter_mode!=1){
+	if(datamgr.counter_mode==0){
 		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
 			datamgr.rad_dose_old = datamgr.rad_dose;
 			datamgr.save_dose();

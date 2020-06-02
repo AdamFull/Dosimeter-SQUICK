@@ -85,7 +85,10 @@ void OutputManager::draw_main(){
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
 
-    if(!datamgr->counter_mode){
+    if(datamgr->counter_mode == 0){
+        display.setTextColor(BLACK, WHITE);
+        display.setCursor(0, 0);
+        display.print(BACKGROUND);
         #if defined(ADVANCED_ERROR)
         uint16_t deviation = map(100-(datamgr->mean/(datamgr->mean+datamgr->std))*100, 0, 100, datamgr->geiger_error, 100);
         #else
@@ -120,9 +123,9 @@ void OutputManager::draw_main(){
             display.drawLine(i,47,i, 47-datamgr->mass[i], BLACK);
         }
         #endif
-    }else{
+    }else if(datamgr->counter_mode == 1){
         display.setTextColor(BLACK, WHITE);
-        display.setCursor(0, 0);
+        display.setCursor(84/2 - 3*6, 0);
         if(!datamgr->next_step) display.print(BACKGROUND);
         else display.print(SAMPLE);
         display.setTextSize(2);
@@ -142,6 +145,24 @@ void OutputManager::draw_main(){
         if(datamgr->stop_timer && !datamgr->next_step) display.print(PRESSSET);
         display.setCursor(25, 36);
         if(datamgr->stop_timer && datamgr->next_step) display.print(SUCCESS);
+    }else if(datamgr->counter_mode == 2){
+        display.setTextColor(BLACK, WHITE);
+        display.setCursor(0, 0);
+        display.print(MODE_SEC);
+        display.setTextColor(BLACK, WHITE);
+        display.setTextSize(2);
+        display.setCursor(0, 8);
+        display.print(datamgr->rad_buff[0]);
+        display.setTextSize(0);
+        display.setCursor(0, 23);
+        display.print(T_CPS);
+        display.drawFastHLine(0,32,84,BLACK);
+
+        #if defined(DRAW_GRAPH)
+        for(byte i=0;i<83;i++){
+            display.drawLine(i,47,i, 47-datamgr->mass[i], BLACK);
+        }
+        #endif
     }
     display.display();
 }
@@ -190,6 +211,10 @@ void OutputManager::draw_menu(){
 
             if (datamgr->cursor==1) display.print(T_CURSOR);
             display.print(ACTIVITY);
+            display.setCursor(0, 30);
+
+            if (datamgr->cursor==2) display.print(T_CURSOR);
+            display.print(MODE_SEC);
         }break;
 
         case 2:{

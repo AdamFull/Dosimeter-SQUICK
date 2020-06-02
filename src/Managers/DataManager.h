@@ -99,7 +99,7 @@ class DataManager{
         byte cursor = 0;
         byte page = 0;
         byte menu_page = 0;
-        bool counter_mode = 0;
+        byte counter_mode = 0;
         byte editable = 0;
         bool means_times = 0;
 

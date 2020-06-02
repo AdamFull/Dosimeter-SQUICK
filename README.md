@@ -48,3 +48,4 @@
 Проект полностью открыт, можете заказывать печатную плату на jlcpcb.
 Если хотите поддержать разработчика вот мой киви: +79525500562 или webmoney: R530142330941
 Первая версия печатной платы: https://easyeda.com/AdamFull/geigercounter
+Версия с эераном от нокии 5110: https://easyeda.com/AdamFull/geigercounter_nokia
