@@ -59,12 +59,13 @@ class DataManager{
         #endif
 
         #if defined(ADVANCED_ERROR)
-        float tinv_value = 0;
+        uint32_t *stat_buff;
+        byte stat_time = 0;
         #endif
         #if defined(UNIVERSAL_COUNTER)
         byte geiger_error = 5;
         byte GEIGER_TIME = 37;
-        byte pwm_converter = 45;
+        byte pwm_converter = 71;
         #else
         static const byte pwm_converter = 45;
         static const byte geiger_error = 5;

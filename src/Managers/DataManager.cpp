@@ -4,14 +4,16 @@
 void DataManager::update_rad_buffer() {
 	#if defined(UNIVERSAL_COUNTER)
 	delete []rad_buff;
+	delete []stat_buff;
     rad_buff = new uint16_t[GEIGER_TIME];
+	stat_buff = new uint32_t[GEIGER_TIME];
 	for(unsigned i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = 0;}
+	for(unsigned i = 0; i < GEIGER_TIME; i++){ stat_buff[i] = 0;}
 	#endif
 	rad_back = rad_max = 0;
 	rad_dose = rad_dose_old;
 	time_sec = time_min = 0;
 	time_min = 1;
-	get_quantile();
 	#if defined(DRAW_GRAPH)
 	for(int i = 0; i < 83; i++) mass[i] = 0;
 	#endif
@@ -75,7 +77,7 @@ void DataManager::save_error(void){
 
 void DataManager::reset_settings(void){
 	EEPROM.put(0b0, (byte)0b1);
-	EEPROM.put(0b1, (byte)45);
+	EEPROM.put(0b1, (byte)71);
 	EEPROM.put(0b10, (byte)200);
 	EEPROM.put(0b11, (byte)0);
 	EEPROM.put(0b100, (byte)60);
@@ -87,22 +89,25 @@ void DataManager::reset_settings(void){
 }
 
 void DataManager::setup_sbm20(){
-	EEPROM.put(0b1, (byte)45);
+	EEPROM.put(0b1, (byte)71);
 	EEPROM.put(0b101, (byte)37);
 	EEPROM.put(0b1110, (byte)5);
 	read_eeprom();
+	analogWrite(3, pwm_converter);
 }
 void DataManager::setup_sbm19(){
-	EEPROM.put(0b1, (byte)45);
+	EEPROM.put(0b1, (byte)71);
 	EEPROM.put(0b101, (byte)18);
 	EEPROM.put(0b1110, (byte)4);
 	read_eeprom();
+	analogWrite(3, pwm_converter);
 }
 void DataManager::setup_beta(){
-	EEPROM.put(0b1, (byte)45);
+	EEPROM.put(0b1, (byte)71);
 	EEPROM.put(0b101, (byte)14);
 	EEPROM.put(0b1110, (byte)2);
 	read_eeprom();
+	analogWrite(3, pwm_converter);
 }
 #endif
 void DataManager::save_tone(void){
@@ -128,6 +133,7 @@ void DataManager::reset_dose(void){
 }
 
 void DataManager::reset_activity_test(){
+	alarm = false;
 	rad_max = 0;
 	rad_back = 0;
 	stop_timer = false;
@@ -142,35 +148,11 @@ void DataManager::reset_activity_test(){
 #if defined(ADVANCED_ERROR)
 void DataManager::calc_std(){
 	uint32_t _sum = 0;
-	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=rad_buff[i];
+	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=stat_buff[i];
 	mean = (float)_sum/GEIGER_TIME;
 	_sum = 0;
-	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=pow(rad_buff[i] - mean, 2);
-	std = sqrt(_sum/GEIGER_TIME-1);
+	for(unsigned i = 0; i < GEIGER_TIME; i++) _sum+=pow(stat_buff[i] - mean, 2);
+	std = (float)_sum/(float)(GEIGER_TIME-1);
 	//if(std > 65535) std = 0;
-}
-
-void DataManager::get_quantile(){
-	byte true_percent = 100 - geiger_error;
-	byte required_k =  GEIGER_TIME - 1;
-	if(required_k >=50 && required_k < 100)	required_k = 49;
-	else if(required_k >=100 && required_k < 255) required_k = 50;
-	else if(required_k > 100) required_k = 51;
-
-	if(true_percent < 70){
-		tinv_value = (pgm_read_word(&t_quantile[required_k][0])/2)/100.f;
-	}else if(true_percent >= 70 && true_percent < 80){
-		tinv_value = pgm_read_word(&t_quantile[required_k][0])/100.f;
-	}else if(true_percent >= 80 && true_percent < 90){
-		tinv_value = pgm_read_word(&t_quantile[required_k][1])/100.f;
-	}else if(true_percent >= 90 && true_percent < 95){
-		tinv_value = pgm_read_word(&t_quantile[required_k][2])/100.f;
-	}else if(true_percent >= 95 && true_percent < 98){
-		tinv_value = pgm_read_word(&t_quantile[required_k][3])/100.f;
-	}else if(true_percent == 98){
-		tinv_value = pgm_read_word(&t_quantile[required_k][4])/100.f;
-	}else if(true_percent > 98){
-		tinv_value = pgm_read_word(&t_quantile[required_k][5])/100.f;
-	}
 }
 #endif

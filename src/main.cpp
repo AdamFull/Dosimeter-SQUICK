@@ -19,7 +19,10 @@ void sleep(void);
 void(* resetFunc) (void) = 0;
 
 void setup() {
-	//Serial.begin(9600);
+	Serial.begin(9600);
+
+	ACSR |= 1 << ACD; //отключаем компаратор
+  	//ADCSRA &= ~(1 << ADEN);  // отключаем АЦП,
 
 	datamgr.init();
 
@@ -65,6 +68,7 @@ void setup() {
 	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
 
 
+	//4khz
 	TCCR2B = 0b00000010;  // x8
     TCCR2A = 0b00000001;  // phase correct
 	//TCCR2B = 0b00000010;  // x8
@@ -74,8 +78,6 @@ void setup() {
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	//ADCManager::pwm_PD3(datamgr.pwm_converter);
-	//ADCManager::pwm_PB3(datamgr.pwm_converter);
 	analogWrite(3, datamgr.pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
@@ -100,6 +102,7 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
 		#endif
 		}
+		if(!datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
 	}
 }
 
@@ -120,6 +123,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			#endif
 			if(tmp_buff>999999) tmp_buff=999999; //переполнение
 			datamgr.rad_back=tmp_buff;
+			datamgr.stat_buff[datamgr.stat_time] = datamgr.rad_back; //Записываю текущее значение мкр/ч для расчёта погрешности
 
 			datamgr.calc_std();
 
@@ -130,7 +134,13 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			#else
 			for(uint8_t k=GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
 			#endif
+			
 			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
+
+			#if defined(ADVANCED_ERROR)
+			if(datamgr.stat_time > datamgr.GEIGER_TIME) datamgr.stat_time = 0; //Счётчик для расчёта статистической погрешности
+			else datamgr.stat_time++;
+			#endif
 
 			#if defined(UNIVERSAL_COUNTER)
 			datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
@@ -138,6 +148,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			datamgr.rad_dose=(datamgr.rad_sum*GEIGER_TIME/3600); //расчитаем дозу
 			#endif
 
+			//Отрисовка графика раз в секунду
 			#if defined(DRAW_GRAPH)
 			datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
             if(datamgr.x_p<83)datamgr.x_p++;
@@ -146,6 +157,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
             }
 			#endif
 		}else{
+			//ТАймер для второго режима. Обратный отсчёт
 			bool stop_timer = datamgr.stop_timer;
 			if(!stop_timer){
 				if(datamgr.time_min != 0 && datamgr.time_sec == 0){
@@ -166,8 +178,8 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 #if defined(CAN_SLEEP)
 void sleep(){
 	if(!datamgr.is_sleeping){
-		ADCManager::pwm_PD3(0);
-		ADCManager::pwm_PB3(0);
+		ADCManager::pwm_PD3(0);		//Отключить шим на преобразователь
+		ADCManager::pwm_PB3(0);		//Отключить шим на экран
 		
 		datamgr.is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
@@ -221,16 +233,16 @@ void button_action(){
 		btn_reset.resetStates();
 		btn_set.resetStates();
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
-		if(menu_mode && !editing_mode){
-			datamgr.detected = true;
-			if(datamgr.menu_page == 0) datamgr.page = 1;
+		if(menu_mode && !editing_mode){										//Если находимся в меню
+			outmgr.beep(100, 30); delay(50); outmgr.beep(200, 50); 
+			if(datamgr.menu_page == 0) {datamgr.page = 1; datamgr.alarm = false;}
 			else if(datamgr.menu_page == 6) datamgr.menu_page = 2;
 			else if(datamgr.menu_page == 7) datamgr.menu_page = 6;
 			else datamgr.menu_page = 0;
 			datamgr.cursor = 0;
 		}
 		if(editing_mode){
-			datamgr.detected = true;
+			outmgr.beep(100, 30); delay(50); outmgr.beep(250, 30);
 			datamgr.editing_mode = false;
 		}
 		if(!menu_mode && datamgr.counter_mode == 1){
@@ -239,7 +251,7 @@ void button_action(){
 			datamgr.time_min = datamgr.time_min_old;
 		}
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
-		if(menu_mode && !editing_mode && datamgr.cursor > 0) { datamgr.detected = true; datamgr.cursor--; }
+		if(menu_mode && !editing_mode && datamgr.cursor > 0) { outmgr.beep(100, 30); datamgr.cursor--; }
 		if(editing_mode){ 
 			if(datamgr.menu_page == 2){
 				#if defined(UNIVERSAL_COUNTER)
@@ -267,7 +279,7 @@ void button_action(){
 		}
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(menu_mode && !editing_mode) {
-			datamgr.detected = true;
+			outmgr.beep(200, 30); delay(50); outmgr.beep(100, 50);
 			switch (datamgr.menu_page){
 				case 0:{
 					switch (datamgr.cursor){
@@ -362,7 +374,7 @@ void button_action(){
 			}
 		}
 		if(menu_mode && editing_mode){
-			datamgr.detected = true;
+			outmgr.beep(200, 30); delay(50); outmgr.beep(50, 50);
 			if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
 					case 0:{ datamgr.time_min = datamgr.editable; }break;
@@ -408,7 +420,7 @@ void button_action(){
 			datamgr.alarm = false;
 		}
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
-			datamgr.detected = true;
+			outmgr.beep(100, 30);
 			switch (datamgr.menu_page){
 				#if defined(CAN_SLEEP)
 				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
@@ -460,6 +472,7 @@ void button_action(){
 	}
 }
 
+//При редактировании применяет текущие значения
 void mode_handler(){
 	if(datamgr.page == 2){
 		if(datamgr.editing_mode){
@@ -473,7 +486,7 @@ void mode_handler(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ analogWrite(3, datamgr.pwm_converter); } break;
+					case 0:{ analogWrite(3, datamgr.editable); } break;
 					case 1:{} break;
 					case 2:{} break;
 				}
@@ -483,6 +496,8 @@ void mode_handler(){
 
 	}
 }
+
+unsigned long debugCounter = 0;
 
 void loop() {
 	if(!datamgr.is_sleeping){
@@ -495,7 +510,12 @@ void loop() {
 		outmgr.do_alarm();
 	}
 
-	analogWrite(3, datamgr.pwm_converter);
+	if(millis()-debugCounter > 1000){
+		debugCounter = millis();
+
+	}
+
+	if(!datamgr.editing_mode) analogWrite(3, datamgr.pwm_converter);
 
 	if(datamgr.counter_mode!=1){
 		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){

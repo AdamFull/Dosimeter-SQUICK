@@ -43,6 +43,20 @@ void OutputManager::beep() { //индикация каждой частички 
 	}
 }
 
+void OutputManager::beep(byte time, byte duration) { //индикация каждой частички звуком светом
+    int d = duration;
+	PORTB_WRITE(5, 1);
+    while (d > 0) {
+      	PORTD_WRITE(5, 1);
+      	delayUs(time);
+      	PORTD_WRITE(5, 0);
+      	delayUs(time);
+	  	asm("nop");
+      	d--;
+    }
+	PORTB_WRITE(5, 0);
+}
+
 void OutputManager::do_alarm(){
     if(millis()-datamgr->alarm_timer > 500){
         datamgr->alarm_timer = millis();
@@ -73,11 +87,7 @@ void OutputManager::draw_main(){
 
     if(!datamgr->counter_mode){
         #if defined(ADVANCED_ERROR)
-            #if defined(UNIVERSAL_COUNTER)
-            uint16_t deviation = 100*(datamgr->tinv_value*datamgr->std/sqrt(datamgr->GEIGER_TIME))/datamgr->mean;
-            #else
-            uint16_t deviation = 100*(datamgr->tinv_value*datamgr->std/sqrt(GEIGER_TIME))/datamgr->mean;
-            #endif
+        uint16_t deviation = map(100-(datamgr->mean/(datamgr->mean+datamgr->std))*100, 0, 100, datamgr->geiger_error, 100);
         #else
         uint16_t deviation = 100;
         #endif
@@ -342,7 +352,7 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            unsigned int hvoltage = datamgr->editable;
+            unsigned int hvoltage = adcmgr.get_hv();
             if (datamgr->cursor==0) display.print(T_CURSOR);
             display.print(VOLTAGE);
             if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);

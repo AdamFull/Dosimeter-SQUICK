@@ -13,6 +13,7 @@ class OutputManager{
         void init();
         void update();
         void beep();
+        void beep(byte time, byte duration);
         #if defined(CAN_SLEEP)
         void going_to_sleep();
         #else
