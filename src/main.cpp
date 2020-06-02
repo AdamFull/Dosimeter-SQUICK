@@ -177,7 +177,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			//Секундный замер, сбрасываем счётчик каждую секунду
 			if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
 			#if defined(DRAW_GRAPH)
-			datamgr.mass[datamgr.x_p]=map(datamgr.rad_buff[0], 0, datamgr.rad_max, 0, 15);
+			datamgr.mass[datamgr.x_p]=map(datamgr.rad_buff[0], 0, datamgr.rad_max < 2 ? 2 : datamgr.rad_max, 0, 15);
             if(datamgr.x_p<83)datamgr.x_p++;
             if(datamgr.x_p==83){
                 for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
