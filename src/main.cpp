@@ -150,6 +150,14 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			datamgr.rad_dose=(datamgr.rad_sum*GEIGER_TIME/3600); //расчитаем дозу
 			#endif
 
+			#if defined(DRAW_GRAPH)
+			datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
+            if(datamgr.x_p<83)datamgr.x_p++;
+            if(datamgr.x_p==83){
+                for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
+            }
+			#endif
+
 		}else if(datamgr.counter_mode == 1){
 			//ТАймер для второго режима. Обратный отсчёт
 			bool stop_timer = datamgr.stop_timer;
@@ -167,22 +175,15 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			}
 		}else if(datamgr.counter_mode == 2){
 			//Секундный замер, сбрасываем счётчик каждую секунду
-			//if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
-			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
-		}
-		if(datamgr.counter_mode != 1){
-			//Отрисовка графика раз в секунду
+			if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
 			#if defined(DRAW_GRAPH)
-			if(datamgr.counter_mode == 2){
-				datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max, 0, 15);
-			}else{	
-				datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
-			}
+			datamgr.mass[datamgr.x_p]=map(datamgr.rad_buff[0], 0, datamgr.rad_max, 0, 15);
             if(datamgr.x_p<83)datamgr.x_p++;
             if(datamgr.x_p==83){
                 for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
             }
 			#endif
+			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 		}
 	}
 }
@@ -308,7 +309,7 @@ void button_action(){
 					switch (datamgr.cursor){
 						case 0:{ datamgr.counter_mode = 0; datamgr.page = 1; }break;
 						case 1:{ datamgr.menu_page = 4; }break;
-						case 2:{ datamgr.counter_mode = 2; datamgr.page = 1; 
+						case 2:{ datamgr.counter_mode = 2; datamgr.page = 1; datamgr.rad_max = 0; 
 						#if defined(DRAW_GRAPH)
 							for(int i = 0; i < 83; i++) datamgr.mass[i] = 0;
 						#endif

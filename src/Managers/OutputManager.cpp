@@ -88,7 +88,18 @@ void OutputManager::draw_main(){
     if(datamgr->counter_mode == 0){
         display.setTextColor(BLACK, WHITE);
         display.setCursor(0, 0);
-        display.print(BACKGROUND);
+        display.print(T_MAX);
+        display.print(":");
+        if(datamgr->rad_max > 1000) {
+            display.print((float)datamgr->rad_max/1000, getNumOfDigits(datamgr->rad_max/1000) > 2 ? 0 : 2);
+            display.print(T_MRH);
+        }else if(datamgr->rad_max > 1000000){
+            display.print((float)datamgr->rad_max/1000000, getNumOfDigits(datamgr->rad_max/1000000) > 2 ? 0 : 2);
+            display.print(T_RH);
+        }else{
+            display.print(datamgr->rad_max);
+            display.print(T_URH);
+        }
         #if defined(ADVANCED_ERROR)
         uint16_t deviation = map(100-(datamgr->mean/(datamgr->mean+datamgr->std))*100, 0, 100, datamgr->geiger_error, 100);
         #else
@@ -153,9 +164,13 @@ void OutputManager::draw_main(){
         display.setTextSize(2);
         display.setCursor(0, 8);
         display.print(datamgr->rad_buff[0]);
+        display.setCursor(84 - getNumOfDigits(datamgr->rad_max)*12, 8);
+        display.print(datamgr->rad_max);
         display.setTextSize(0);
         display.setCursor(0, 23);
         display.print(T_CPS);
+        display.setCursor(84 - 3*6, 23);
+        display.print(T_MAX);
         display.drawFastHLine(0,32,84,BLACK);
 
         #if defined(DRAW_GRAPH)
