@@ -61,15 +61,14 @@ unsigned long timing = 0;
 byte ton_BUZZ = 200; //тональность буззера
 bool buzz_mode = false;
 
+uint16_t sensorValue = 0;
+
 volatile byte wdt_counter;
 
 TM1637 tm1637(CLK, DIO);
 GButton btn_reset(12, HIGH_PULL, NORM_OPEN);
 GButton btn_set(11, HIGH_PULL, NORM_OPEN);
 
-void conv_pump(void);
-void impulse(void);
-void show_info(void);
 void update_counter(void);
 void save_voltage_config(void);
 void save_geiger_time_config(void);
@@ -108,8 +107,6 @@ void setup() {
 	btn_set.setTimeout(1000);
 
 	//ACSR |= 1 << ACD; //отключаем компаратор
-
-	ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
@@ -165,18 +162,25 @@ void setup() {
 
 int adc0_read()
 {
-	ADMUX |=(1 << REFS0)|(0 << MUX0)|(0 << MUX1)|(0 << MUX2)|(0 << MUX3); // выставляем опорное напряжение Vcc, снимать сигнал будем с входа AC3
-	do{ ADCSRA |= (1 << ADSC); } // Начинаем преобразование
-	while ((ADCSRA & (1 << ADIF)) == 0); // пока не будет выставлен флаг об окончании преобразования
-	return (ADCL | ADCH<<8);
+	ADMUX = 0b11100000;//выбор внутреннего опорного 1,1В и А1
+  	ADCSRA = 0b11100111;
+  	_delay_us(20);
+	while ((ADCSRA & 0x10) == 0);
+	ADCSRA |= 0x10;
+	byte result = ADCH;
+	//ADCSRA &= ~(1 << ADEN);
+	return result;
 }
 
 int adc1_read()
 {
-	ADMUX |= (0 << REFS1)|(1 << REFS0)|(1 << MUX0)|(0 << MUX1)|(0 << MUX2)|(0 << MUX3); // выставляем опорное напряжение Vcc, снимать сигнал будем с входа AC3
-	do{ ADCSRA |= (1 << ADSC); } // Начинаем преобразование
-	while ((ADCSRA & (1 << ADIF)) == 0); // пока не будет выставлен флаг об окончании преобразования
-	return (ADCL | ADCH<<8);
+	ADMUX = 0b11100001;//выбор внутреннего опорного 1,1В и А1
+  	ADCSRA = 0b11100111;
+  	_delay_us(20);
+	ADCSRA |= 0x10;
+	byte result = ADCH;
+	//ADCSRA &= ~(1 << ADEN);
+	return result;
 }
 
 ISR(WDT_vect){
@@ -432,10 +436,18 @@ float get_battery_voltage(){
 
 unsigned voltage_config()
 {
-	//ADCSRA |= (1 << ADEN);
-	unsigned readed_value = adc1_read();
-	return (TARGET_VOLTAGE*readed_value/DIVIDER);
-	//ADCSRA &= ~(1 << ADEN);
+	static byte counter = 0;     // счётчик
+  	static uint16_t prevResult = 0; // хранит предыдущее готовое значение
+  	static uint16_t sum = 0;  // сумма
+  	sum += adc1_read();   // суммируем новое значение
+	counter++;       // счётчик++
+	if (counter == 30) {      // достигли кол-ва измерений
+		prevResult = sum / 30;  // считаем среднее
+		sum = 0;                      // обнуляем сумму
+		counter = 0;                  // сброс счётчика
+	}
+	sensorValue = (sensorValue * (5 - 1) + prevResult) / 5;
+	return ((float)sensorValue / (float)255)*515;
 }
 
 void voltage_editing(){
