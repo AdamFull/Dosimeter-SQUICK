@@ -64,8 +64,8 @@ bool buzz_mode = false;
 volatile byte wdt_counter;
 
 TM1637 tm1637(CLK, DIO);
-GButton btn_reset(3, HIGH_PULL, NORM_OPEN);
-GButton btn_set(12, HIGH_PULL, NORM_OPEN);
+GButton btn_reset(12, HIGH_PULL, NORM_OPEN);
+GButton btn_set(11, HIGH_PULL, NORM_OPEN);
 
 void conv_pump(void);
 void impulse(void);
@@ -76,7 +76,7 @@ void save_geiger_time_config(void);
 void save_tone_delay(void);
 void cancel(String);
 void button_action(void);
-void sleep(void);
+void _sleep(void);
 void(* resetFunc) (void) = 0;
 
 void setup_defaults()
@@ -141,8 +141,8 @@ void setup() {
 	bitSet(DDRB,5); 						//pin 13 (PB5) как выход, блинк при засекании частицы
 	bitClear(PORTB,5);
 
-	bitSet(DDRB,3); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	bitClear(PORTB,3);
+	bitSet(DDRD,3); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	bitClear(PORTD,3);
 
 	bitClear(DDRD,2); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
 	bitSet(PORTD,2); 						//подтягивающий резистор	
@@ -156,7 +156,7 @@ void setup() {
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(11, pwm_converter);
+	analogWrite(3, pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
@@ -184,7 +184,7 @@ ISR(WDT_vect){
 		wdt_counter--;
 		wdt_disable();
 	}else{
-		if(!is_sleeping) sleep();
+		if(!is_sleeping) _sleep();
 		else wdt_reset();
 	}
 }
@@ -234,12 +234,12 @@ if(++cnt1>=TIME_FACT) //расчет показаний один раз в се�
 }
 
 
-void sleep(){
+void _sleep(){
 	if(!is_sleeping){
 		tm1637.displayStr((char*)"P0FF");
 		delay(1000);
 		tm1637.clearDisplay();
-		analogWrite(11, 0);
+		analogWrite(3, 0);
 		bitClear(PORTB, MRLED_PIN);		
 		bitClear(PORTB, URLED_PIN);
 		bitClear(PORTB, RLED_PIN);
@@ -258,7 +258,7 @@ void sleep(){
 		power_timer1_disable();					//используется для расчётов, в выключеном состоянии они не нужны
 		power_timer2_disable();					//используется для шим, он тоже не нужен.
 		power_adc_disable();					//Читать данные с батареи и с вв источника не нужно, отключаем
-		power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
+		//power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
 		power_usart0_disable();					//Юарт в дальнейшем тоже будет выпилен
 
 		bitClear(PORTC,2);						//Выключить экран
@@ -353,7 +353,7 @@ void button_action(){
 				menu_mode = false;
 			}
 		}else{
-			sleep();
+			_sleep();
 		}
 		if(wdt_counter < 255) wdt_counter++;
 	}else if(btn_set.isClick() && !btn_set_isHolded){
@@ -439,7 +439,7 @@ unsigned voltage_config()
 }
 
 void voltage_editing(){
-	analogWrite(11, pwm_converter);
+	analogWrite(3, pwm_converter);
 }
 
 void cancel(String msg){
@@ -456,7 +456,7 @@ void save_voltage_config(void)
 {
 	//byte voltage_mult = (byte)map(adc0_read(), 0, 1023, 0, 255);
 	eeprom_update_byte((uint8_t*)0b1, pwm_converter);
-	analogWrite(11, pwm_converter);
+	analogWrite(3, pwm_converter);
 	tm1637.displayStr((char*)"SAVE");
 	delay(1000);
 	mode = 0;
