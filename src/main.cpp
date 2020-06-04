@@ -90,7 +90,6 @@ void setup() {
 	wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
 	WDTCSR |= (1 << WDIE);				//Разрешить прерывания сторожевого таймера
 
-	Serial.begin(9600);
 	if(eeprom_read_byte((uint8_t*)0b0) == 0b0) setup_defaults();
 	pwm_converter = eeprom_read_byte((uint8_t*)0b1);
 	GEIGER_TIME = eeprom_read_byte((uint8_t*)0b10);
@@ -144,8 +143,8 @@ void setup() {
 	bitClear(DDRD,2); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
 	bitSet(PORTD,2); 						//подтягивающий резистор	
 
-	bitSet(PORTC,2);						//Включить экран
-	bitSet(PORTC,3);						//Включить эмиттерный повторитель
+	bitSet(PORTC,3);						//Включить экран
+	bitSet(PORTC,2);						//Включить эмиттерный повторитель
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 	TCCR2B = 0b00000010;  // x8
