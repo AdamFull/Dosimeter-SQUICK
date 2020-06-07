@@ -147,8 +147,9 @@ void setup() {
 	bitSet(PORTC,2);						//Включить эмиттерный повторитель
 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
+	//4khz
 	TCCR2B = 0b00000010;  // x8
-	TCCR2A = 0b00000011;  // fast pwm
+    TCCR2A = 0b00000001;  // phase correct
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
@@ -364,13 +365,11 @@ void button_action(){
 		{
 			if(editing_mode){
 				if(mode == 4)
-					if(pwm_converter < 255)
 						pwm_converter++;
 				if(mode == 5)
-					if(GEIGER_TIME < 255)
+					if(GEIGER_TIME < 100)
 						GEIGER_TIME++;
 				if(mode == 6){
-					if(ton_BUZZ < 255)
 						ton_BUZZ += 5;
 					detected = true;
 				}
