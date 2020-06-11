@@ -70,7 +70,6 @@
 
 
 #define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
-#define HVGEN_FACT 5 // 25/5=5Гц частота подкачки преобразователя
 #define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы
 
 #if defined(SHOW_LOGO)
