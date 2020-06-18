@@ -1,111 +1,37 @@
 #include <Arduino.h>
-#include <TM1637.h>
-#include <EEPROM.h>
-#include <avr/wdt.h>
 #include <avr/power.h>
-#include <GyverButton.h>
+#include <Libs/GyverButton.h>
 
-/*TODO
-1. Придумать нормальное выключение
-2. Дисплей поставить на пин и включать через фет, так же как и эмитерный повторитель
-3. Раскидать код по классам
-4. Доработать код, оставить только побитовые операции.
-5. Убрать всё что имеется от ардуино ide
-6. Переписать библиотеку работы с экраном и оставить только необходимое
-7. Подумать насчёт измерения в зивертах
-8. Отвязать пищалку от задержек
+#include <Managers/OutputManager.h>
+#include <macros.h>
+/*
+Исправить графические глюки
 */
 
-#define CLK 6
-#define DIO 7
+GButton btn_reset(4, HIGH_PULL, NORM_OPEN);
+GButton btn_set(5, HIGH_PULL, NORM_OPEN);
 
-#define BUZZER_PIN 5
-#define URLED_PIN 0
-#define MRLED_PIN 1
-#define RLED_PIN 2
-#define MODE_BTN 3
+DataManager &datamgr = DataManager::getInstance();
+OutputManager outmgr = OutputManager(&datamgr);
 
-#define COUNTER_PIN 3
-
-byte GEIGER_TIME = 37;
-
-#define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
-#define HVGEN_FACT 5 // 25/5=5Гц частота подкачки преобразователя
-#define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы
-
-#define TARGET_VOLTAGE 400				//Требуемое напряжение
-#define DIVIDER 883						//Значение ацп делителя напряжения
-
-bool detected = false;
-
-uint16_t *rad_buff;// = new uint16_t[GEIGER_TIME]; //массив секундных замеров для расчета фона
-uint32_t rad_sum; //сумма импульсов за все время
-uint32_t rad_back; //текущий фон
-uint32_t rad_max; //максимум фона
-uint32_t rad_dose; //доза
-uint8_t time_sec; //секунды //счетчики времени
-uint8_t time_min; //минуты
-uint8_t time_hrs; //часы
-
-uint8_t mode = 0; // режим выводимых на экран данных
-bool menu_mode = false;
-bool editing_mode = false;
-bool show_mode = false;
-bool zivert = false;
-byte pwm_converter = 45;
-
-bool is_sleeping = false;
-
-unsigned long timing = 0;
-
-byte ton_BUZZ = 200; //тональность буззера
-bool buzz_mode = false;
-
-uint16_t sensorValue = 0;
-
-volatile byte wdt_counter;
-
-TM1637 tm1637(CLK, DIO);
-GButton btn_reset(12, HIGH_PULL, NORM_OPEN);
-GButton btn_set(11, HIGH_PULL, NORM_OPEN);
-
-void update_counter(void);
-void save_voltage_config(void);
-void save_geiger_time_config(void);
-void save_tone_delay(void);
-void cancel(String);
 void button_action(void);
-void _sleep(void);
+void sleep(void);
 void(* resetFunc) (void) = 0;
 
-void setup_defaults()
-{
-	eeprom_write_byte((uint8_t*)0b0, 0b1);
-	eeprom_write_byte((uint8_t*)0b1, pwm_converter);
-	eeprom_write_byte((uint8_t*)0b10, GEIGER_TIME);
-	eeprom_write_byte((uint8_t*)0b11, ton_BUZZ);
-}
-
 void setup() {
-	wdt_enable(WDTO_8S);				//Интервал сторожевого таймера 8 сек
-	WDTCSR |= (1 << WDIE);				//Разрешить прерывания сторожевого таймера
+	Serial.begin(9600);
 
-	if(eeprom_read_byte((uint8_t*)0b0) == 0b0) setup_defaults();
-	pwm_converter = eeprom_read_byte((uint8_t*)0b1);
-	GEIGER_TIME = eeprom_read_byte((uint8_t*)0b10);
-	ton_BUZZ = eeprom_read_byte((uint8_t*)0b11);
+	ACSR |= 1 << ACD; //отключаем компаратор
+  	//ADCSRA &= ~(1 << ADEN);  // отключаем АЦП,
 
-	Serial.println("PWM: " + String(pwm_converter));
-	Serial.println("Geiger: " + String(GEIGER_TIME));
+	datamgr.init();
 
-	update_counter();
-
-	btn_reset.setClickTimeout(10);
-	btn_set.setClickTimeout(10);
+	btn_reset.setClickTimeout(100);
+	btn_set.setClickTimeout(100);
 	btn_reset.setTimeout(1000);
 	btn_set.setTimeout(1000);
 
-	//ACSR |= 1 << ACD; //отключаем компаратор
+	outmgr.init();
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
@@ -113,177 +39,190 @@ void setup() {
 	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
 	TCNT1=TIMER1_PRELOAD;
 
-	tm1637.set();
-	tm1637.init();
+	PORTD_MODE(0, OUTPUT);
+	PORTD_WRITE(0, LOW);
 
-	Serial.begin(9600);
+	PORTD_MODE(1, OUTPUT);
+	PORTD_WRITE(1, LOW);
 
-	bitSet(DDRC,2); 						//pin A2 (PC2) как выход, земля экрана
-	bitClear(PORTC,2);
+	PORTD_MODE(2, INPUT); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
+	PORTD_WRITE(2, HIGH); 						//подтягивающий резистор	
 
-	bitSet(DDRC,3); 						//pin A3 (PC3) как выход, замля повторителя
-	bitClear(PORTC,3);
+	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
+	PORTD_WRITE(3, LOW);
 
-	bitSet(DDRD,5); 						//pin 5 (PD5) как выход, звуковая индикация частицы
-	bitClear(PORTD,5);
+	PORTD_MODE(5, OUTPUT); 						//pin 5 (PD5) как выход, звуковая индикация частицы
+	PORTD_WRITE(5, LOW);
 
-	bitSet(DDRB,0); 						//pin 8 (PB0) как выход, единица измерения микрорентген
-	bitClear(PORTB,0);
-	bitSet(DDRB,1); 						//pin 9 (PB1) как выход, единица измерения миллирентген
-	bitClear(PORTB,1);
-	bitSet(DDRB,2); 						//pin 10 (PB2) как выход, единица измерения рентген
-	bitClear(PORTB,2);
+	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_WRITE(3, LOW);
 
-	bitSet(DDRB,5); 						//pin 13 (PB5) как выход, блинк при засекании частицы
-	bitClear(PORTB,5);
+	PORTC_MODE(2, OUTPUT);						//pin A2 (PC2) как выход, земля экрана
+	PORTC_WRITE(2, LOW);
 
-	bitSet(DDRD,3); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	bitClear(PORTD,3);
+	PORTC_MODE(3, OUTPUT); 						//pin A3 (PC3) как выход, замля повторителя
+	PORTC_WRITE(3, LOW);
 
-	bitClear(DDRD,2); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	bitSet(PORTD,2); 						//подтягивающий резистор	
 
-	bitSet(PORTC,3);						//Включить экран
-	bitSet(PORTC,2);						//Включить эмиттерный повторитель
+	PORTC_WRITE(2, HIGH);						//Включить экран
+	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
 
-	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
+
 	//4khz
 	TCCR2B = 0b00000010;  // x8
     TCCR2A = 0b00000001;  // phase correct
+	//TCCR2B = 0b00000010;  // x8
+	//TCCR2A = 0b00000011;  // fast pwm
+	//TCCR2B = 0b00000001;  // x1
+	//TCCR2A = 0b00000011;  // fast pwm
 
   	TIMSK1=0b00000001; //запускаем Timer 1
 
-	analogWrite(3, pwm_converter);
+	analogWrite(3, datamgr.pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
-	//tm1637.point(POINT_ON);
-}
-
-int adc0_read()
-{
-	ADMUX = 0b11100000;//выбор внутреннего опорного 1,1В и А1
-  	ADCSRA = 0b11100111;
-  	_delay_us(20);
-	while ((ADCSRA & 0x10) == 0);
-	ADCSRA |= 0x10;
-	byte result = ADCH;
-	//ADCSRA &= ~(1 << ADEN);
-	return result;
-}
-
-int adc1_read()
-{
-	ADMUX = 0b11100001;//выбор внутреннего опорного 1,1В и А1
-  	ADCSRA = 0b11100111;
-  	_delay_us(20);
-	ADCSRA |= 0x10;
-	byte result = ADCH;
-	//ADCSRA &= ~(1 << ADEN);
-	return result;
-}
-
-ISR(WDT_vect){
-	if(wdt_counter > 0 && !is_sleeping){
-		wdt_counter--;
-		wdt_disable();
-	}else{
-		if(!is_sleeping) _sleep();
-		else wdt_reset();
-	}
+	datamgr.end_init = true;
 }
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
-	if(rad_buff[0]!=65535) rad_buff[0]++; //нулевой элемент массива - текущий секундный замер
-	if(++rad_sum>999999UL*3600/GEIGER_TIME) rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
-	if(wdt_counter < 255) wdt_counter++;
-	detected = true;
+	if(datamgr.end_init){
+		if(datamgr.counter_mode==0){    //Режим поиска	
+		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
+		#if defined(UNIVERSAL_COUNTER)
+			if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
+		#else
+			if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
+		#endif
+		if(datamgr.page == 1) datamgr.detected = true;
+		}else if(datamgr.counter_mode==1){							//Режим измерения активности
+		#if defined(UNIVERSAL_COUNTER)
+			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
+		#else
+			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
+		#endif
+		}else if(datamgr.counter_mode==2){							//Режим измерения активности
+			if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер	
+		}
+		if(datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
+	}
 }
 
 ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer 1
+	static uint8_t cnt1;
 
-static uint8_t cnt1;
+	TCNT1=TIMER1_PRELOAD;
 
-TCNT1=TIMER1_PRELOAD;
+	if(++cnt1>=TIME_FACT){ //расчет показаний один раз в секунду
+		cnt1=0;
 
-if(++cnt1>=TIME_FACT) //расчет показаний один раз в секунду
-	{
-	cnt1=0;
+		if(datamgr.counter_mode == 0){
+			uint32_t tmp_buff=0;
+			#if defined(UNIVERSAL_COUNTER)
+			for(uint8_t i=0; i<datamgr.GEIGER_TIME; i++) tmp_buff+=datamgr.rad_buff[i]; //расчет фона мкР/ч
+			#else
+			for(uint8_t i=0; i<GEIGER_TIME; i++) tmp_buff+=datamgr.rad_buff[i]; //расчет фона мкР/ч
+			#endif
+			if(tmp_buff>999999) tmp_buff=999999; //переполнение
+			datamgr.rad_back=tmp_buff;
+			datamgr.stat_buff[datamgr.stat_time] = datamgr.rad_back; //Записываю текущее значение мкр/ч для расчёта погрешности
 
-	uint32_t tmp_buff=0;
-	for(uint8_t i=0; i<GEIGER_TIME; i++) tmp_buff+=rad_buff[i]; //расчет фона мкР/ч
-	if(tmp_buff>999999) tmp_buff=999999; //переполнение
-	rad_back=tmp_buff;
+			datamgr.calc_std();
 
-	if(rad_back>rad_max) rad_max=rad_back; //фиксируем максимум фона
+			if(datamgr.rad_back>datamgr.rad_max) datamgr.rad_max=datamgr.rad_back; //фиксируем максимум фона
 
-	for(uint8_t k=GEIGER_TIME-1; k>0; k--) rad_buff[k]=rad_buff[k-1]; //перезапись массива
-	rad_buff[0]=0; //сбрасываем счетчик импульсов
+			#if defined(UNIVERSAL_COUNTER)
+			for(uint8_t k=datamgr.GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
+			#else
+			for(uint8_t k=GEIGER_TIME-1; k>0; k--) datamgr.rad_buff[k]=datamgr.rad_buff[k-1]; //перезапись массива
+			#endif
+			
+			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 
-	rad_dose=(rad_sum*GEIGER_TIME/3600); //расчитаем дозу
+			#if defined(ADVANCED_ERROR)
+			if(datamgr.stat_time > datamgr.GEIGER_TIME) datamgr.stat_time = 0; //Счётчик для расчёта статистической погрешности
+			else datamgr.stat_time++;
+			#endif
 
-	if(time_hrs<99) //если таймер не переполнен
-		{
-		if(++time_sec>59) //считаем секунды
-			{
-			if(++time_min>59) //считаем минуты
-				{
-				if(++time_hrs>99) time_hrs=99; //часы
-				time_min=0;
+			#if defined(UNIVERSAL_COUNTER)
+			datamgr.rad_dose=(datamgr.rad_sum*datamgr.GEIGER_TIME/3600); //расчитаем дозу
+			#else
+			datamgr.rad_dose=(datamgr.rad_sum*GEIGER_TIME/3600); //расчитаем дозу
+			#endif
+
+			#if defined(DRAW_GRAPH)
+			datamgr.mass[datamgr.x_p]=map(datamgr.rad_back, 0, datamgr.rad_max < 40 ? 40 : datamgr.rad_max, 0, 15);
+            if(datamgr.x_p<83)datamgr.x_p++;
+            if(datamgr.x_p==83){
+                for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
+            }
+			#endif
+
+		}else if(datamgr.counter_mode == 1){
+			//ТАймер для второго режима. Обратный отсчёт
+			bool stop_timer = datamgr.stop_timer;
+			if(!stop_timer){
+				if(datamgr.time_min != 0 && datamgr.time_sec == 0){
+					--datamgr.time_min;
+					datamgr.time_sec=60;
+				} 
+				if(datamgr.time_sec != 0){ --datamgr.time_sec; }
+				datamgr.timer_remain--;
+				if(datamgr.timer_remain == 0){
+					datamgr.stop_timer = true;
+					datamgr.alarm = true;
 				}
-			time_sec=0;
 			}
+		}else if(datamgr.counter_mode == 2){
+			//Секундный замер, сбрасываем счётчик каждую секунду
+			if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
+			#if defined(DRAW_GRAPH)
+			datamgr.mass[datamgr.x_p]=map(datamgr.rad_buff[0], 0, datamgr.rad_max < 2 ? 2 : datamgr.rad_max, 0, 15);
+            if(datamgr.x_p<83)datamgr.x_p++;
+            if(datamgr.x_p==83){
+                for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
+            }
+			#endif
+			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 		}
 	}
 }
 
-
-void _sleep(){
-	if(!is_sleeping){
-		tm1637.displayStr((char*)"P0FF");
-		delay(1000);
-		tm1637.clearDisplay();
-		analogWrite(3, 0);
-		bitClear(PORTB, MRLED_PIN);		
-		bitClear(PORTB, URLED_PIN);
-		bitClear(PORTB, RLED_PIN);
+#if defined(CAN_SLEEP)
+void sleep(){
+	if(!datamgr.is_sleeping){
+		ADCManager::pwm_PD3(0);		//Отключить шим на преобразователь
+		ADCManager::pwm_PB3(0);		//Отключить шим на экран
 		
-		is_sleeping = true;
+		datamgr.is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
 		btn_set.setTimeout(1);
 		//Замедляю микроконтроллер в 6 раз, частота 250 кГц (Остальное слишком медленно, он не хочет просыпаться)
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 6;
 		cli();
-		// Отключаем детектор пониженного напряжения питания
-  		MCUCR != (1 << BODS) | (1 << BODSE);
-  		MCUCR &= ~(1 << BODSE);
 		//Отключаю всё кроме таймера 0, т.к. он нужен для обработки кнопки.
 		power_timer1_disable();					//используется для расчётов, в выключеном состоянии они не нужны
 		power_timer2_disable();					//используется для шим, он тоже не нужен.
 		power_adc_disable();					//Читать данные с батареи и с вв источника не нужно, отключаем
-		//power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
+		power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
 		power_usart0_disable();					//Юарт в дальнейшем тоже будет выпилен
 
-		bitClear(PORTC,2);						//Выключить экран
-		bitClear(PORTC,3);						//Выключить эмиттерный повторитель
+		PORTC_WRITE(2, LOW);						//Выключить экран
+		PORTC_WRITE(3, LOW);						//Выключить эмиттерный повторитель
 		sei();
 	}else{
 		//Ставим делитель обратно, частота 16 МГц
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 0;
-		// Отключаем детектор пониженного напряжения питания
-  		MCUCR = (1 << BODS) | (1 << BODSE);
-  		MCUCR |= (1 << BODSE);
 
 		power_all_enable();
-		is_sleeping = false;
-		tm1637.displayStr((char*)"P ON");
-		delay(1000);
+		datamgr.is_sleeping = false;
 		resetFunc();
 	}
 	
 }
+#endif
 
 void button_action(){
 	btn_reset.tick();
@@ -292,267 +231,315 @@ void button_action(){
 	bool btn_reset_isHolded = btn_reset.isHolded();
 	bool btn_set_isHolded = btn_set.isHolded();
 
+	bool menu_mode = datamgr.page == 2;
+	bool editing_mode = datamgr.editing_mode;
+
 	if(btn_reset.isHold() && btn_set.isHold()){
 		if(!menu_mode){
-			menu_mode = true;
-			editing_mode = false;
-			btn_reset.resetStates();
-			btn_set.resetStates();
-		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_reset_isHolded){
-		if(menu_mode || editing_mode){
-			if(editing_mode && (mode == 4 || mode == 5)){
-				editing_mode = false;
-				menu_mode = true;
-			}else{
-				cancel("----");
-			}
+			datamgr.page = 2;
+			datamgr.menu_page = 0;
+			datamgr.editing_mode = false;
 		}else{
-			switch (mode)
-			{
-				case 0:{ rad_back = 0; } break;
-				case 1:{ rad_sum = 0; } break;
-				case 2:{ rad_max = 0; } break;
-				case 3:{ rad_dose = 0; } break;
-			}
+			datamgr.editing_mode = false;
+			datamgr.page = 1;
 		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_reset.isClick() && !btn_reset_isHolded){
-		if(menu_mode || editing_mode)
-		{
-			if(editing_mode){
-				if(mode == 4)
-					if(pwm_converter > 0)
-						pwm_converter--;
-				if(mode == 5)
-					if(GEIGER_TIME > 0)
-						GEIGER_TIME--;
-				if(mode == 6){
-					if(ton_BUZZ > 0)
-						ton_BUZZ -= 5;
-					detected = true;
+		btn_reset.resetStates();
+		btn_set.resetStates();
+	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
+		if(menu_mode && !editing_mode){										//Если находимся в меню
+			outmgr.beep(100, 30); delay(50); outmgr.beep(200, 50); 
+			if(datamgr.menu_page == 0) {datamgr.page = 1; datamgr.alarm = false;}
+			else if(datamgr.menu_page == 6) datamgr.menu_page = 2;
+			else if(datamgr.menu_page == 7) datamgr.menu_page = 6;
+			else datamgr.menu_page = 0;
+			datamgr.cursor = 0;
+		}
+		if(editing_mode){
+			outmgr.beep(100, 30); delay(50); outmgr.beep(250, 30);
+			datamgr.editing_mode = false;
+		}
+		if(!menu_mode && datamgr.counter_mode == 1){
+			datamgr.reset_activity_test();
+			datamgr.timer_remain = datamgr.timer_time;
+			datamgr.time_min = datamgr.time_min_old;
+		}
+	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
+		if(menu_mode && !editing_mode && datamgr.cursor > 0) { outmgr.beep(100, 30); datamgr.cursor--; }
+		if(editing_mode){ 
+			if(datamgr.menu_page == 2){
+				#if defined(UNIVERSAL_COUNTER)
+				if(datamgr.cursor == 2){
+				#else
+				if(datamgr.cursor == 1){
+				#endif
+					if(datamgr.editable > 0) datamgr.editable--;
+				}else datamgr.editable--;
+			}else if(datamgr.menu_page == 4){
+				switch (datamgr.cursor){
+					case 0:{ if(datamgr.editable > 1) datamgr.editable--; }break;
+					case 1:{ if(datamgr.editable > 0) datamgr.editable--; }break;
 				}
-			}else{
-				if(mode > 0)
-					mode--;
 			}
-		}else{
-			show_mode = true;
-		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_set_isHolded){
-		if(menu_mode || editing_mode){
-			if((mode == 4 || mode == 5 || mode == 6) && !editing_mode){
-				editing_mode = true;
-				menu_mode = false;
-			}else if(editing_mode){
-				if(mode == 4)
-					save_voltage_config();
-				if(mode == 5)
-					save_geiger_time_config();
-				if(mode == 6)
-					save_tone_delay();
-			}else{
-				menu_mode = false;
-			}
-		}else{
-			_sleep();
-		}
-		if(wdt_counter < 255) wdt_counter++;
-	}else if(btn_set.isClick() && !btn_set_isHolded){
-		if(menu_mode || editing_mode)
-		{
-			if(editing_mode){
-				if(mode == 4)
-						pwm_converter++;
-				if(mode == 5)
-					if(GEIGER_TIME < 100)
-						GEIGER_TIME++;
-				if(mode == 6){
-						ton_BUZZ += 5;
-					detected = true;
+			#if defined(UNIVERSAL_COUNTER)
+			else if(datamgr.menu_page == 7){
+				switch (datamgr.cursor){
+					case 0:{ if(datamgr.editable > 5) datamgr.editable--; } break;
+					case 1:{ if(datamgr.editable > 1) datamgr.editable--; } break;
+					case 2:{ if(datamgr.editable > 1) datamgr.editable--; } break;
 				}
-			}else{
-				if(mode < 7)
-					mode++;
 			}
-		}else{
-			zivert = !zivert;
+			#endif
 		}
-		if(wdt_counter < 255) wdt_counter++;
-	}
-}
-
-void update_counter(void){
-	rad_buff = new uint16_t[GEIGER_TIME];
-	for(byte i = 0; i < GEIGER_TIME; i++){ rad_buff[i] = (uint16_t)0; }
-	rad_back = rad_dose = rad_max = rad_sum = 0;
-}
-
-void delayUs(byte dtime){
-	for(int i = 0; i < dtime; i++){
-		_delay_us(1);
-	}
-}
-
-void signa () { //индикация каждой частички звуком светом
-	if(buzz_mode){
-		if (millis()-timing>=ton_BUZZ){
-			timing+=ton_BUZZ;
-			if(detected){
-				bitSet(PORTD, 5);
-				bitSet(PORTB, 5);
-				detected = false;
-			}else{
-				bitClear(PORTB, 5);
-				bitClear(PORTD, 5);
+	}else if(btn_set_isHolded){												//Удержание кнопки сет
+		if(menu_mode && !editing_mode) {
+			outmgr.beep(200, 30); delay(50); outmgr.beep(100, 50);
+			switch (datamgr.menu_page){
+				case 0:{
+					switch (datamgr.cursor){
+						case 0:{ datamgr.menu_page = 1; }break;
+						case 1:{ datamgr.menu_page = 2; }break;
+						case 2:{ datamgr.menu_page = 3; }break;
+						#if defined(CAN_SLEEP)
+						case 3:{ datamgr.menu_page = 5; }break;
+						#endif
+					}
+					datamgr.cursor = 0;
+				}break;
+				case 1:{
+					switch (datamgr.cursor){
+						case 0:{ datamgr.counter_mode = 0; datamgr.page = 1; }break;
+						case 1:{ datamgr.menu_page = 4; }break;
+						case 2:{ datamgr.counter_mode = 2; datamgr.page = 1; datamgr.rad_max = 0; 
+						#if defined(DRAW_GRAPH)
+							for(int i = 0; i < 83; i++) datamgr.mass[i] = 0;
+						#endif
+						}break;
+					}
+					datamgr.cursor = 0;
+				}break;
+				case 2:{
+					switch (datamgr.cursor){
+						#if defined(UNIVERSAL_COUNTER)
+						case 0:{ datamgr.menu_page = 6; }break;
+						case 1:{ datamgr.editable = datamgr.ton_BUZZ; }break;
+						case 2:{ datamgr.editable = datamgr.backlight; }break;
+						case 3:{ datamgr.editable = datamgr.contrast; }break;
+						#else
+						case 0:{ datamgr.editable = datamgr.ton_BUZZ; }break;
+						case 1:{ datamgr.editable = datamgr.backlight; }break;
+						case 2:{ datamgr.editable = datamgr.contrast; }break;
+						#endif
+					}
+					#if defined(UNIVERSAL_COUNTER)
+					if(datamgr.cursor != 0) datamgr.editing_mode = true;
+					#else
+					datamgr.editing_mode = true;
+					#endif
+				}break;
+				case 3:{
+					switch (datamgr.cursor){								//Стереть данные
+						case 0:{ datamgr.reset_settings(); datamgr.menu_page = 0; }break;
+						case 1:{ datamgr.reset_dose(); datamgr.menu_page = 0; }break;
+						case 2:{ datamgr.reset_settings(); datamgr.reset_dose(); datamgr.menu_page = 0; }break;
+					}
+					datamgr.cursor = 0;
+				}break;
+				case 4:{
+					switch (datamgr.cursor){
+						case 0:{ datamgr.editable = datamgr.time_min; }break;
+						case 1:{ datamgr.editable = datamgr.means_times; }break;
+						case 2:{
+							datamgr.reset_activity_test();
+							datamgr.time_min_old = datamgr.time_min;
+							datamgr.timer_time = datamgr.time_min * 60;
+							datamgr.timer_remain = datamgr.timer_time;
+						}break;
+					}
+					if(datamgr.cursor != 2) datamgr.editing_mode = true;
+					
+				}break;
+				case 5:{
+					switch (datamgr.cursor){								//Вообще это диалог выбора, но пока что это не он
+						case 0:{
+						#if defined(CAN_SLEEP)
+						outmgr.going_to_sleep(); 
+						sleep(); 
+						#endif
+						}break;
+						case 1:{ datamgr.menu_page = 0; }break;
+					}
+					datamgr.cursor = 0;
+				}break;
+				#if defined(UNIVERSAL_COUNTER)
+				case 6:{
+					switch (datamgr.cursor){
+						case 0:{ datamgr.menu_page = 2; datamgr.setup_sbm20(); }break;
+						case 1:{ datamgr.menu_page = 2; datamgr.setup_sbm19(); }break;
+						case 2:{ datamgr.menu_page = 2; datamgr.setup_beta(); }break;
+						case 3:{ datamgr.menu_page = 7; }break;
+					}
+					datamgr.cursor = 0;
+				}break;
+				case 7:{
+					switch (datamgr.cursor){
+						case 0:{ datamgr.editable = datamgr.pwm_converter; }break;
+						case 1:{ datamgr.editable = datamgr.GEIGER_TIME; }break;
+						case 2:{ datamgr.editable = datamgr.geiger_error; }break;
+					}
+					datamgr.editing_mode = true;
+				}break;
+				#endif
 			}
 		}
-	}else{
-		if(detected){
-			detected = false;
-    		int d = 30;
-			bitSet(PORTB, 5);
-    		while (d > 0) {
-      			bitSet(PORTD, 5);
-      			delayUs(ton_BUZZ);
-      			bitClear(PORTD, 5);
-      			delayUs(ton_BUZZ);
-	  			asm("nop");
-      			d--;
-    		}
-			bitClear(PORTB, 5);
+		if(menu_mode && editing_mode){
+			outmgr.beep(200, 30); delay(50); outmgr.beep(50, 50);
+			if(datamgr.menu_page == 4){
+				switch (datamgr.cursor){
+					case 0:{ datamgr.time_min = datamgr.editable; }break;
+					case 1:{ datamgr.means_times = datamgr.editable; }break;
+				}
+			}
+			#if defined(UNIVERSAL_COUNTER)
+			else if(datamgr.menu_page == 7){
+				switch (datamgr.cursor){
+					case 0:{ datamgr.save_pwm(); }break;
+					case 1:{ datamgr.save_time(); }break;
+					case 2:{ datamgr.save_error(); }break;
+				}
+			}
+			#endif
+			else{
+				switch (datamgr.cursor){
+					#if defined(UNIVERSAL_COUNTER)
+					case 1:{ datamgr.save_tone(); }break;
+					case 2:{ datamgr.save_bl(); }break;
+					case 3:{ datamgr.save_contrast(); }break;
+					#else
+					case 0:{ datamgr.save_tone(); }break;
+					case 1:{ datamgr.save_bl(); }break;
+					case 2:{ datamgr.save_contrast(); }break;
+					#endif
+				}
+			}
+			datamgr.editing_mode = false;
+		}
+	}else if(btn_set.isClick() && !btn_set_isHolded){					//Клик кнопки сет
+		if(!menu_mode && datamgr.counter_mode == 1 && !datamgr.next_step && datamgr.stop_timer){
+			datamgr.rad_max = datamgr.rad_back;
+			datamgr.rad_back = 0;
+			datamgr.next_step = true;
+			datamgr.stop_timer = false;
+			datamgr.alarm = false;
+			datamgr.time_min = datamgr.time_min_old;
+			datamgr.timer_remain = datamgr.timer_time;
+			datamgr.time_sec = 0;
+		}
+		if(!menu_mode && datamgr.counter_mode == 1 && datamgr.alarm && datamgr.next_step && datamgr.stop_timer){
+			datamgr.alarm = false;
+		}
+		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
+			outmgr.beep(100, 30);
+			switch (datamgr.menu_page){
+				#if defined(CAN_SLEEP)
+				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
+				#else
+				case 0:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				#endif
+				case 1:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				#if defined(UNIVERSAL_COUNTER)
+				case 2:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
+				#else
+				case 2:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				#endif
+				case 3:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				case 4:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				#if defined(CAN_SLEEP)
+				case 5:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
+				#endif
+				#if defined(UNIVERSAL_COUNTER)
+				case 6:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
+				case 7:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				#endif
+			}
+		}
+		if(editing_mode){ 
+			if(datamgr.menu_page == 2){
+				#if defined(UNIVERSAL_COUNTER)
+				if(datamgr.cursor == 2){
+				#else
+				if(datamgr.cursor == 1){
+				#endif
+					if(datamgr.editable < 1) datamgr.editable++;
+				}else datamgr.editable++;
+			}else if(datamgr.menu_page == 4){
+				switch (datamgr.cursor){
+					case 0:{ datamgr.editable++; }break;
+					case 1:{ if(datamgr.editable < 1) datamgr.editable++; }break;
+				}
+			}
+			#if defined(UNIVERSAL_COUNTER)
+			else if(datamgr.menu_page == 7){
+				switch (datamgr.cursor){
+					case 0:{ if(datamgr.editable < 200) datamgr.editable++; } break;
+					case 1:{ if(datamgr.editable < 150) datamgr.editable++; } break;
+					case 2:{ if(datamgr.editable < 40) datamgr.editable++; } break;
+				}
+			}
+			#endif
 		}
 	}
 }
 
-float get_battery_voltage(){
-	float voltage = 0.2 + (1125300UL / adc0_read()) * 2;
-	return voltage;
-}
-
-unsigned voltage_config()
-{
-	static byte counter = 0;     // счётчик
-  	static uint16_t prevResult = 0; // хранит предыдущее готовое значение
-  	static uint16_t sum = 0;  // сумма
-  	sum += adc1_read();   // суммируем новое значение
-	counter++;       // счётчик++
-	if (counter == 30) {      // достигли кол-ва измерений
-		prevResult = sum / 30;  // считаем среднее
-		sum = 0;                      // обнуляем сумму
-		counter = 0;                  // сброс счётчика
-	}
-	sensorValue = (sensorValue * (5 - 1) + prevResult) / 5;
-	return ((float)sensorValue / (float)255)*515;
-}
-
-void voltage_editing(){
-	analogWrite(3, pwm_converter);
-}
-
-void cancel(String msg){
-	char buff[4];
-	msg.toCharArray(buff, 5);
-	tm1637.displayStr(buff);
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-	menu_mode = false;
-}
-
-void save_voltage_config(void)
-{
-	//byte voltage_mult = (byte)map(adc0_read(), 0, 1023, 0, 255);
-	eeprom_update_byte((uint8_t*)0b1, pwm_converter);
-	analogWrite(3, pwm_converter);
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void save_geiger_time_config(void)
-{
-	eeprom_update_byte((uint8_t*)0b10, GEIGER_TIME);
-	update_counter();
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void save_tone_delay(void){
-	eeprom_update_byte((uint8_t*)0b11, ton_BUZZ);
-	tm1637.displayStr((char*)"SAVE");
-	delay(1000);
-	mode = 0;
-	editing_mode = false;
-}
-
-void display(void){
-	String current_output = "";
-	char buff[5];
-	uint32_t cur_val = 0;
-	float in_zivert = 0.f;
-	if(menu_mode || show_mode){
-		switch (mode)
-		{
-			case 0:{ current_output = "BACK"; } break;
-			case 1:{ current_output = "PVLS"; } break;
-			case 2:{ current_output = "PEAK"; } break;
-			case 3:{ current_output = "D0SE"; } break;
-			case 4:{ current_output = "HV0L"; } break;
-			case 5:{ current_output = "CALC"; } break;
-			case 6:{ current_output = "t0nE"; } break;
-			case 7:{ current_output = "BAtt"; } break;
-		}
-	}else{
-		switch (mode){
-			case 0: { cur_val = rad_back; } break;		// Выбираем текущий фон
-			case 1: { cur_val = rad_sum; } break;		// Выбираем число импульсов за всё время
-			case 2: { cur_val = rad_max; } break;		// Выбираем максимальный фон
-			case 3: { cur_val = rad_dose; } break;		// Выбираем накопленную дозу
-			case 4: { cur_val = (uint32_t)pwm_converter; } break; //voltage_config() - Потом выводить на экран вольты, когда будет делитель
-			case 5: { cur_val = (uint32_t)GEIGER_TIME; } break;
-			case 6: { cur_val = (uint32_t)ton_BUZZ; } break;
-			case 7: { cur_val = get_battery_voltage()/1000; } break;
+//При редактировании применяет текущие значения
+void mode_handler(){
+	if(datamgr.page == 2){
+		if(datamgr.editing_mode){
+			if(datamgr.menu_page == 2){
+				switch (datamgr.cursor){
+					case 1:{} break;
+					case 2:{ ADCManager::pwm_PB3(datamgr.editable ? 255 : 0); } break;
+					case 3:{ outmgr.set_contrast(datamgr.editable); } break;
+				}
+			}
+			#if defined(UNIVERSAL_COUNTER)
+			else if(datamgr.menu_page == 7){
+				switch (datamgr.cursor){
+					case 0:{ analogWrite(3, datamgr.editable); } break;
+					case 1:{} break;
+					case 2:{} break;
+				}
+			}
+			#endif
 		}
 
-		if(cur_val > 9999){				//Переходим к микрорентгенам
-			bitSet(PORTB, MRLED_PIN);		
-			bitClear(PORTB, URLED_PIN);
-			bitClear(PORTB, RLED_PIN);
-			cur_val /= 1000;
-		}else if(cur_val > 9999999){ 	//Переходим к рентгенам
-			bitSet(PORTB, RLED_PIN);
-			bitClear(PORTB, MRLED_PIN);
-			cur_val /= 1000000;
-		}else{
-			bitSet(PORTB, URLED_PIN);
-			bitClear(PORTB, MRLED_PIN);
-		}
-
-		if(zivert && mode != 1){
-			in_zivert = cur_val/1000;
-		}else{
-			current_output = String(cur_val);
-		}
-	}
-	current_output.toCharArray(buff, 5);
-	tm1637.displayStr(buff);
-	if(show_mode){
-		delay(1000);
-		show_mode = false;
 	}
 }
+
+unsigned long debugCounter = 0;
 
 void loop() {
-	if(!is_sleeping){
-		display();
-		signa();
-		if(editing_mode && mode == 4) voltage_editing();
+	if(!datamgr.is_sleeping){
+		mode_handler();
+		outmgr.update();
 	}
 	button_action();
+
+	if(datamgr.alarm){
+		outmgr.do_alarm();
+	}
+
+	if(millis()-debugCounter > 1000){
+		debugCounter = millis();
+
+	}
+
+	if(!datamgr.editing_mode) analogWrite(3, datamgr.pwm_converter);
+
+	if(datamgr.counter_mode==0){
+		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
+			datamgr.rad_dose_old = datamgr.rad_dose;
+			datamgr.save_dose();
+			datamgr.rad_max = datamgr.rad_back;
+		}
+	}
 }

@@ -1,4 +1,6 @@
 #include "GyverButton.h"
+#include <avr/io.h>
+#include <macros.h>
 #include <Arduino.h>
 
 // ==================== CONSTRUCTOR ====================
@@ -25,14 +27,11 @@ void GButton::setTimeout(uint16_t new_timeout) {
 void GButton::setClickTimeout(uint16_t new_timeout) {
 	_click_timeout = new_timeout;
 }
-void GButton::setStepTimeout(uint16_t step_timeout) {
-	_step_timeout = step_timeout;
-}
 void GButton::setType(bool type) {
 	flags.type = type;
 	if (!flags.noPin) {
-		if (type) pinMode(_PIN, INPUT);
-		else pinMode(_PIN, INPUT_PULLUP);
+		if (type) PORTC_MODE(_PIN, INPUT);
+		else { PORTC_MODE(_PIN, INPUT); PORTC_WRITE(_PIN, HIGH); } 
 	}	
 }
 void GButton::setDirection(bool dir) {
@@ -76,58 +75,6 @@ boolean GButton::isHold() {
 	if (flags.step_flag) return true;
 	else return false;
 }
-boolean GButton::state() {
-	if (flags.tickMode) GButton::tick();
-	return btn_state;
-}
-boolean GButton::isSingle() {
-	if (flags.tickMode) GButton::tick();
-	if (flags.counter_flag && last_counter == 1) {
-		last_counter = 0;
-		flags.counter_flag = false;
-		return true;
-	} else return false;
-}
-boolean GButton::isDouble() {
-	if (flags.tickMode) GButton::tick();
-	if (flags.counter_flag && last_counter == 2) {
-		flags.counter_flag = false;
-		last_counter = 0;
-		return true;
-	} else return false;
-}
-boolean GButton::isTriple() {
-	if (flags.tickMode) GButton::tick();
-	if (flags.counter_flag && last_counter == 3) {
-		flags.counter_flag = false;
-		last_counter = 0;
-		return true;
-	} else return false;
-}
-boolean GButton::hasClicks() {
-	if (flags.tickMode) GButton::tick();
-	if (flags.counter_flag) {
-		flags.counter_flag = false;
-		return true;
-	} else return false;
-}
-uint8_t GButton::getClicks() {
-	byte thisCount = last_counter;
-	last_counter = 0;
-	return thisCount;	
-}
-uint8_t GButton::getHoldClicks() {
-	if (flags.tickMode) GButton::tick();
-	return flags.hold_flag ? last_hold_counter : 0;	
-}
-boolean GButton::isStep(byte clicks) {
-	if (flags.tickMode) GButton::tick();
-	if (btn_counter == clicks && flags.step_flag && (millis() - btn_timer >= _step_timeout)) {
-		btn_timer = millis();		
-		return true;
-	}
-	else return false;
-}
 
 void GButton::resetStates() {
 	flags.isPress_f = false;
@@ -135,7 +82,6 @@ void GButton::resetStates() {
 	flags.isOne_f = false;
 	flags.isHolded_f = false;
 	flags.step_flag = false;
-	flags.counter_flag = false;
 	last_hold_counter = 0;
 	last_counter = 0;
 }
@@ -150,7 +96,7 @@ void GButton::tick(boolean state) {
 
 void GButton::tick() {	
 	// читаем пин
-	if (!flags.mode && !flags.noPin) btn_state = !digitalRead(_PIN) ^ (flags.inv_state ^ flags.type);
+	if (!flags.mode && !flags.noPin) btn_state = !PORTC_READ(_PIN) ^ (flags.inv_state ^ flags.type);
 	
 	uint32_t thisMls = millis();
 	
@@ -198,12 +144,5 @@ void GButton::tick() {
 		flags.step_flag = true;
 		flags.oneClick_f = false;
 		btn_timer = thisMls;
-	}
-
-	// обработка накликивания
-	if ((thisMls - btn_timer >= _click_timeout) && (btn_counter != 0)) {    
-		last_counter = btn_counter;
-		btn_counter = 0;
-		flags.counter_flag = true;
 	}
 }
