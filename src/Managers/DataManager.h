@@ -111,7 +111,7 @@ class DataManager{
         float battery_voltage = 0;
         //display//
 
-        bool has_eeprom = 1;
+        byte has_eeprom = 1;
 
         //-----------------------Измерение погрешности для статистики-----------------------
         #if defined(ADVANCED_ERROR)

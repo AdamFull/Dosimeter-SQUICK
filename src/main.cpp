@@ -18,94 +18,25 @@ void button_action(void);
 void sleep(void);
 void(* resetFunc) (void) = 0;
 
-void setup() {
-	Serial.begin(9600);
-
-	ACSR |= 1 << ACD; //отключаем компаратор
-  	//ADCSRA &= ~(1 << ADEN);  // отключаем АЦП,
-
-	datamgr.init();
-
-	btn_reset.setClickTimeout(100);
-	btn_set.setClickTimeout(100);
-	btn_reset.setTimeout(1000);
-	btn_set.setTimeout(1000);
-
-	outmgr.init();
-
-	//настраиваем Timer 1
-	TIMSK1=0; //отключить таймер
-	TCCR1A=0; //OC1A/OC1B disconnected
-	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
-	TCNT1=TIMER1_PRELOAD;
-
-	PORTD_MODE(0, OUTPUT);
-	PORTD_WRITE(0, LOW);
-
-	PORTD_MODE(1, OUTPUT);
-	PORTD_WRITE(1, LOW);
-
-	PORTD_MODE(2, INPUT); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	PORTD_WRITE(2, HIGH); 						//подтягивающий резистор	
-
-	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
-	PORTD_WRITE(3, LOW);
-
-	PORTD_MODE(5, OUTPUT); 						//pin 5 (PD5) как выход, звуковая индикация частицы
-	PORTD_WRITE(5, LOW);
-
-	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление преобразователем
-	PORTB_WRITE(3, LOW);
-
-	PORTC_MODE(2, OUTPUT);						//pin A2 (PC2) как выход, земля экрана
-	PORTC_WRITE(2, LOW);
-
-	PORTC_MODE(3, OUTPUT); 						//pin A3 (PC3) как выход, замля повторителя
-	PORTC_WRITE(3, LOW);
-
-
-	PORTC_WRITE(2, HIGH);						//Включить экран
-	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
-
-
-	//4khz
-	TCCR2B = 0b00000010;  // x8
-    TCCR2A = 0b00000001;  // phase correct
-	//TCCR2B = 0b00000010;  // x8
-	//TCCR2A = 0b00000011;  // fast pwm
-	//TCCR2B = 0b00000001;  // x1
-	//TCCR2A = 0b00000011;  // fast pwm
-
-  	TIMSK1=0b00000001; //запускаем Timer 1
-
-	analogWrite(3, datamgr.pwm_converter);
-
-	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
-	EIMSK=0b00000001; //разрешаем внешнее прерывание 0
-	datamgr.end_init = true;
-}
-
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
-	if(datamgr.end_init){
-		if(datamgr.counter_mode==0){    //Режим поиска	
-		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
-		#if defined(UNIVERSAL_COUNTER)
-			if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
-		#else
-			if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
-		#endif
-		if(datamgr.page == 1) datamgr.detected = true;
-		}else if(datamgr.counter_mode==1){							//Режим измерения активности
-		#if defined(UNIVERSAL_COUNTER)
-			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
-		#else
-			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
-		#endif
-		}else if(datamgr.counter_mode==2){							//Режим измерения активности
-			if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер	
-		}
-		if(datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
+	if(datamgr.counter_mode==0){    //Режим поиска	
+	if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер		
+	#if defined(UNIVERSAL_COUNTER)
+		if(++datamgr.rad_sum>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_sum=999999UL*3600/datamgr.GEIGER_TIME; //общая сумма импульсов
+	#else
+		if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
+	#endif
+	if(datamgr.page == 1) datamgr.detected = true;
+	}else if(datamgr.counter_mode==1){							//Режим измерения активности
+	#if defined(UNIVERSAL_COUNTER)
+		if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
+	#else
+		if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/GEIGER_TIME) datamgr.rad_back=999999UL*3600/GEIGER_TIME; //Сумма импульсов для режима измерения
+	#endif
+	}else if(datamgr.counter_mode==2){							//Режим измерения активности
+		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замер	
 	}
+	if(datamgr.page == 1) analogWrite(3, datamgr.pwm_converter + 10); //Если попала частица, добавляем немного шим, чтобы компенсировать просадку
 }
 
 ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer 1
@@ -186,6 +117,80 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 		}
 	}
+}
+
+void setup() {
+  	//ADCSRA &= ~(1 << ADEN);  // отключаем АЦП,
+
+	datamgr.init();
+
+	btn_reset.setClickTimeout(100);
+	btn_set.setClickTimeout(100);
+	btn_reset.setTimeout(1000);
+	btn_set.setTimeout(1000);
+
+	outmgr.init();
+
+	PORTD_MODE(0, OUTPUT);
+	PORTD_WRITE(0, LOW);
+
+	PORTD_MODE(1, OUTPUT);
+	PORTD_WRITE(1, LOW);
+
+	PORTD_MODE(2, INPUT); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
+	PORTD_WRITE(2, LOW); 						//подтягивающий резистор	
+
+	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
+	PORTD_WRITE(3, LOW);
+
+	PORTD_MODE(5, OUTPUT); 						//pin 5 (PD5) как выход, звуковая индикация частицы
+	PORTD_WRITE(5, LOW);
+
+	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_WRITE(3, LOW);
+
+	PORTC_MODE(2, OUTPUT);						//pin A2 (PC2) как выход, земля экрана
+	PORTC_WRITE(2, LOW);
+
+	PORTC_MODE(3, OUTPUT); 						//pin A3 (PC3) как выход, замля повторителя
+	PORTC_WRITE(3, LOW);
+
+
+	PORTC_WRITE(2, HIGH);						//Включить экран
+	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
+
+	cli();
+	ACSR |= 1 << ACD; //отключаем компаратор
+
+	//настраиваем Timer 1
+	TIMSK1=0; //отключить таймер
+	TCCR1A=0; //OC1A/OC1B disconnected
+	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
+	TCNT1=TIMER1_PRELOAD;
+
+	TIMSK1=0b00000001; //запускаем Timer 1
+	TIMSK1 |= (1 << TOIE1);
+
+	//4khz
+	TCCR2B = 0b00000010;  // x8
+    TCCR2A = 0b00000001;  // phase correct
+	//TCCR2B = 0b00000010;  // x8
+	//TCCR2A = 0b00000011;  // fast pwm
+	//TCCR2B = 0b00000001;  // x1
+	//TCCR2A = 0b00000011;  // fast pwm
+
+	sei();
+
+	ADCManager::pwm_PD3(datamgr.pwm_converter);
+
+	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
+	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
+
+	//sei();
+
+	//analogWrite(3, datamgr.pwm_converter);
+
+	datamgr.end_init = true;
 }
 
 #if defined(CAN_SLEEP)

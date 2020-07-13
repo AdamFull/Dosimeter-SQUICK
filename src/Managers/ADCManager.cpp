@@ -26,7 +26,7 @@ uint16_t ADCManager::get_hv()
 		counter = 0;                  // сброс счётчика
 	}
 	sensorValue = (sensorValue * (avgFactor - 1) + prevResult) / avgFactor;
-	return ((float)sensorValue / (float)255)*515;
+	return (sensorValue / 255)*520;
 }
 
 byte ADCManager::adc1_read(){

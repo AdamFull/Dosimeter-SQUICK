@@ -23,6 +23,10 @@ void DataManager::init(){
 	EEPROM.get(0b0, has_eeprom);
     if(has_eeprom == 0 || has_eeprom == 255) setup_eeprom();
     else read_eeprom();
+	if(pwm_converter > 250){
+		setup_eeprom();
+		read_eeprom();
+	}
 }
 
 void DataManager::read_eeprom(){
