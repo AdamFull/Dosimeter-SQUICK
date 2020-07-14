@@ -7,26 +7,21 @@ void ADCManager::adc_init(){
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 }
 
-float ADCManager::get_battery_voltage(){
-	sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
-	float voltage = 0.2 + (1125300UL / sensorValue) * 2;
-	return voltage/1000;
+uint8_t ADCManager::get_battery_voltage(){
+	for(int i = 0; i < 15; i++) sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
+	return sensorValue;
 }
 
 uint16_t ADCManager::get_hv()
 {
-	static byte counter = 0;     // счётчик
-  	static uint16_t prevResult = 0; // хранит предыдущее готовое значение
   	static uint16_t sum = 0;  // сумма
-  	sum += adc1_read();   // суммируем новое значение
-	counter++;       // счётчик++
-	if (counter == 30) {      // достигли кол-ва измерений
-		prevResult = sum / 30;  // считаем среднее
-		sum = 0;                      // обнуляем сумму
-		counter = 0;                  // сброс счётчика
+	for(int i = 0; i < 15; i++){
+		for(int j = 0; j < 15; j++){
+			sum += adc1_read();
+		}
+		sensorValue = (sensorValue * (avgFactor - 1) + sum / 30) / avgFactor;
 	}
-	sensorValue = (sensorValue * (avgFactor - 1) + prevResult) / avgFactor;
-	return (sensorValue / 255)*520;
+	return sensorValue;
 }
 
 byte ADCManager::adc1_read(){
