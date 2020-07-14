@@ -7,8 +7,9 @@
 
 class OutputManager{
     public:
-        OutputManager(DataManager *datamgr){
+        OutputManager(DataManager *datamgr, ADCManager *adcmgr){
             this->datamgr = datamgr;
+            this->adcmgr = adcmgr;
         }
         void init();
         void update();
@@ -34,7 +35,7 @@ class OutputManager{
         }
         
         DataManager *datamgr;
-        ADCManager &adcmgr = ADCManager::getInstance();
+        ADCManager *adcmgr;
         Adafruit_PCD8544 display = Adafruit_PCD8544(10, 9, 8, 7, 6);
 
         inline int mapfloat(float x, float in_min, float in_max, float out_min, float out_max){

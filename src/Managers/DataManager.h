@@ -108,7 +108,7 @@ class DataManager{
         byte x_p = 0;
         #endif
 
-        float battery_voltage = 0;
+        uint16_t battery_voltage = 0;
         //display//
 
         byte has_eeprom = 1;

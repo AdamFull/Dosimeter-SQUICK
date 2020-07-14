@@ -68,6 +68,10 @@
 #define PAGES 5
 #endif
 
+#define BAT_ADC_MIN 368
+#define BAT_ADC_MAX 435
+
+#define HV_ADC_REQ 144
 
 #define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
 #define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы

@@ -12,7 +12,8 @@ GButton btn_reset(4, HIGH_PULL, NORM_OPEN);
 GButton btn_set(5, HIGH_PULL, NORM_OPEN);
 
 DataManager &datamgr = DataManager::getInstance();
-OutputManager outmgr = OutputManager(&datamgr);
+ADCManager &adcmgr = ADCManager::getInstance();
+OutputManager outmgr = OutputManager(&datamgr, &adcmgr);
 
 void button_action(void);
 void sleep(void);
@@ -181,7 +182,7 @@ void setup() {
 
 	sei();
 
-	ADCManager::pwm_PD3(datamgr.pwm_converter);
+	ADCManager::pwm_PD3(80);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
@@ -535,10 +536,14 @@ void loop() {
 
 	if(millis()-debugCounter > 1000){
 		debugCounter = millis();
-
+		if(!datamgr.editing_mode) {
+			if(adcmgr.get_hv() < HV_ADC_REQ) datamgr.pwm_converter++;
+			else datamgr.pwm_converter--;
+			ADCManager::pwm_PD3(datamgr.pwm_converter);
+			if(adcmgr.get_hv() == 0) ADCManager::pwm_PD3(60);
+			//analogWrite(3, datamgr.pwm_converter);
+		}
 	}
-
-	if(!datamgr.editing_mode) analogWrite(3, datamgr.pwm_converter);
 
 	if(datamgr.counter_mode==0){
 		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){

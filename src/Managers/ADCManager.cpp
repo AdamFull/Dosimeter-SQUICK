@@ -7,21 +7,19 @@ void ADCManager::adc_init(){
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
 }
 
-uint8_t ADCManager::get_battery_voltage(){
-	for(int i = 0; i < 15; i++) sensorValue = (sensorValue * (avgFactor - 1) + adc0_read()) / avgFactor;
-	return sensorValue;
+uint16_t ADCManager::get_battery_voltage(){
+	for(int i = 0; i < 30; i++){
+		batValue = (batValue * (avgFactor - 1) + analogRead(A0)) / avgFactor;
+	}
+	return batValue;
 }
 
 uint16_t ADCManager::get_hv()
 {
-  	static uint16_t sum = 0;  // сумма
-	for(int i = 0; i < 15; i++){
-		for(int j = 0; j < 15; j++){
-			sum += adc1_read();
-		}
-		sensorValue = (sensorValue * (avgFactor - 1) + sum / 30) / avgFactor;
+	for(int i = 0; i < 30; i++){
+		hvValue = (hvValue * (avgFactor - 1) + analogRead(A1)) / avgFactor;
 	}
-	return sensorValue;
+	return hvValue;
 }
 
 byte ADCManager::adc1_read(){

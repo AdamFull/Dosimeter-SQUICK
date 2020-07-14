@@ -7,8 +7,8 @@ void OutputManager::init(){
     display.setContrast(datamgr->contrast);
     display.display(); // show splashscreen
     display.clearDisplay();
-    adcmgr.adc_init();
-    for(int i = 0; i < 10; i++) datamgr->battery_voltage = adcmgr.get_battery_voltage();
+    adcmgr->adc_init();
+    datamgr->battery_voltage = adcmgr->get_battery_voltage();
 }
 
 void OutputManager::update(){
@@ -77,10 +77,10 @@ void OutputManager::draw_main(){
     display.clearDisplay();
     if(millis()-voltage_update > 30000){
         voltage_update = millis();
-        datamgr->battery_voltage = adcmgr.get_battery_voltage();
-        Serial.println(datamgr->battery_voltage);
+        uint16_t new_voltage = adcmgr->get_battery_voltage();
+        datamgr->battery_voltage = new_voltage;
     }
-    int coeff = mapfloat(datamgr->battery_voltage, 3.0, 4.2, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
+    int coeff = mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
@@ -93,9 +93,9 @@ void OutputManager::draw_main(){
         uint16_t deviation = 100;
         #endif
         if(deviation > 100) deviation = 100;
-        display.setCursor(84 - (getNumOfDigits(deviation)+2)*6, 13);
+        display.setCursor(84 - (getNumOfDigits(adcmgr->get_hv())+2)*6, 13);
         display.write(240);
-        display.print(deviation);
+        display.print(adcmgr->get_hv());
         display.print("%");
         display.setTextSize(2);
         display.setCursor(0, 8);
@@ -379,7 +379,7 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            unsigned int hvoltage = adcmgr.get_hv();
+            unsigned int hvoltage = adcmgr->get_hv();
             if (datamgr->cursor==0) display.print(T_CURSOR);
             display.print(VOLTAGE);
             if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);

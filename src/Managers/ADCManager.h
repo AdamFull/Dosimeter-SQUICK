@@ -18,7 +18,7 @@ class ADCManager{
         ADCManager() {}
     public:
         void adc_init();
-        uint8_t get_battery_voltage();
+        uint16_t get_battery_voltage();
         uint16_t get_hv();
 
         static void pwm_PD3(byte pwm);
@@ -29,5 +29,6 @@ class ADCManager{
         byte adc1_read();
 
         byte avgFactor = 5;
-        uint16_t sensorValue = 0;
+        uint16_t batValue = 0;
+        uint16_t hvValue = 0;
 };
