@@ -84,6 +84,7 @@ void OutputManager::draw_main(){
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
+    if(datamgr->is_charging) display.drawBitmap(60, 0, charge_Bitmap, 5, 7, BLACK);
 
     if(datamgr->mean_mode) display.drawBitmap(0, 0, mean_Bitmap, 5, 7, BLACK);
 
@@ -167,6 +168,16 @@ void OutputManager::draw_main(){
             display.drawLine(i,47,i, 47-datamgr->mass[i], BLACK);
         }
         #endif
+    }else if(datamgr->counter_mode == 3){
+        uint8_t progress = map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 42);
+        display.drawBitmap(17, 12, big_battery_Bitmap, 50, 24, BLACK);
+        display.fillRect(19, 14, progress, 20, BLACK);
+        display.setCursor(0, 0);
+        display.print("V:");
+        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 3.6, 4.2));
+        display.setCursor(40, 38);
+        display.print(map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 100));
+        display.print("%");
     }
     display.display();
 }
@@ -381,44 +392,33 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            unsigned int hvoltage = adcmgr->get_hv();
-            if (datamgr->cursor==0) display.print(T_CURSOR);
-            display.print(VOLTAGE);
-            if(datamgr->cursor==0 && datamgr->editing_mode) display.setTextColor(WHITE, BLACK);
-            display.setCursor(84 - (getNumOfDigits(hvoltage)+1)*6, 10);
-            display.print(hvoltage);
-            display.print("V");
-            display.setTextColor(BLACK, WHITE);
-            display.setCursor(0, 20);
-
             if (datamgr->cursor==1) display.print(T_CURSOR);
             display.print(GTIME);
             if(datamgr->cursor==1 && datamgr->editing_mode){
-                display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 20);
+                display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 10);
                 display.setTextColor(WHITE, BLACK);
                 display.print(datamgr->editable);
             }else{
-                display.setCursor(84 - (getNumOfDigits(datamgr->GEIGER_TIME)+1)*6, 20);
+                display.setCursor(84 - (getNumOfDigits(datamgr->GEIGER_TIME)+1)*6, 10);
                 display.print(datamgr->GEIGER_TIME);
             }
             display.print("s");
-            display.setCursor(0, 30);
+            display.setCursor(0, 20);
             display.setTextColor(BLACK, WHITE);
 
             if (datamgr->cursor==2) display.print(T_CURSOR);
             display.print(ERROR);
             if(datamgr->cursor==2 && datamgr->editing_mode){
-                display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*6, 30);
+                display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*6, 20);
                 display.setTextColor(WHITE, BLACK);
                 display.write(240);
                 display.print(datamgr->editable, 1);
             }else{
-                display.setCursor(84 - (getNumOfDigits(datamgr->geiger_error)+2)*6, 30);
+                display.setCursor(84 - (getNumOfDigits(datamgr->geiger_error)+2)*6, 20);
                 display.write(240);
                 display.print(datamgr->geiger_error, 1);
             }
             display.print("%");
-            display.setCursor(0, 40);
             display.setTextColor(BLACK, WHITE);
         }break;
         #endif

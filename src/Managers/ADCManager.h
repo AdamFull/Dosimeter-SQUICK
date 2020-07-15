@@ -3,9 +3,6 @@
 
 typedef uint8_t byte;
 
-#define TARGET_VOLTAGE 403				//Требуемое напряжение
-#define DIVIDER 190						//Значение ацп делителя напряжения
-
 class ADCManager{
     public:
         static ADCManager& getInstance()

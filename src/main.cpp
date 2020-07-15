@@ -17,6 +17,7 @@ OutputManager outmgr = OutputManager(&datamgr, &adcmgr);
 
 void button_action(void);
 void sleep(void);
+void interrupt_setup(void);
 void(* resetFunc) (void) = 0;
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
@@ -143,7 +144,13 @@ void setup() {
 	PORTD_WRITE(1, LOW);
 
 	PORTD_MODE(2, INPUT); 						//настраиваем пин 2 (PD2) на вход, импульсы от счетчика
-	PORTD_WRITE(2, LOW); 						//подтягивающий резистор	
+	PORTD_WRITE(2, LOW);
+
+	PORTD_MODE(0, INPUT); 						//настраиваем пин 0 (PD0) на вход, заряжено
+	PORTD_WRITE(0, LOW);
+
+	PORTD_MODE(1, INPUT); 						//настраиваем пин 1 (PD1) на вход, заряжается
+	PORTD_WRITE(1, LOW); 
 
 	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
 	PORTD_WRITE(3, LOW);
@@ -163,32 +170,13 @@ void setup() {
 
 	PORTC_WRITE(2, HIGH);						//Включить экран
 	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
-
-	cli();
-	ACSR |= 1 << ACD; //отключаем компаратор
-
-	//настраиваем Timer 1
-	TIMSK1=0; //отключить таймер
-	TCCR1A=0; //OC1A/OC1B disconnected
-	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
-	TCNT1=TIMER1_PRELOAD;
-
-	TIMSK1=0b00000001; //запускаем Timer 1
-	TIMSK1 |= (1 << TOIE1);
-
-	//4khz
-	TCCR2B = 0b00000010;  // x8
-    TCCR2A = 0b00000001;  // phase correct
-	//TCCR2B = 0b00000010;  // x8
-	//TCCR2A = 0b00000011;  // fast pwm
-	//TCCR2B = 0b00000001;  // x1
-	//TCCR2A = 0b00000011;  // fast pwm
-
-	sei();
-	//ADCManager::pwm_PD3(datamgr.pwm_converter);
+	
+	interrupt_setup();
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
+
+	datamgr.counter_mode = 0;
 }
 
 #if defined(CAN_SLEEP)
@@ -226,6 +214,26 @@ void sleep(){
 	
 }
 #endif
+
+void interrupt_setup(){
+	cli();
+	ACSR |= 1 << ACD; //отключаем компаратор
+
+	//настраиваем Timer 1
+	TIMSK1=0; //отключить таймер
+	TCCR1A=0; //OC1A/OC1B disconnected
+	TCCR1B=0b00000101; //предделитель 16M/1024=15625кГц
+	TCNT1=TIMER1_PRELOAD;
+
+	TIMSK1=0b00000001; //запускаем Timer 1
+	TIMSK1 |= (1 << TOIE1);
+
+	//4khz
+	TCCR2B = 0b00000010;  // x8
+    TCCR2A = 0b00000001;  // phase correct
+
+	sei();
+}
 
 void button_action(){
 	btn_reset.tick();
@@ -286,9 +294,8 @@ void button_action(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ if(datamgr.editable > 5) datamgr.editable--; } break;
+					case 0:{ if(datamgr.editable > 1) datamgr.editable--; } break;
 					case 1:{ if(datamgr.editable > 1) datamgr.editable--; } break;
-					case 2:{ if(datamgr.editable > 1) datamgr.editable--; } break;
 				}
 			}
 			#endif
@@ -405,9 +412,8 @@ void button_action(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ datamgr.save_pwm(); }break;
-					case 1:{ datamgr.save_time(); }break;
-					case 2:{ datamgr.save_error(); }break;
+					case 0:{ datamgr.save_time(); }break;
+					case 1:{ datamgr.save_error(); }break;
 				}
 			}
 			#endif
@@ -466,7 +472,7 @@ void button_action(){
 				#endif
 				#if defined(UNIVERSAL_COUNTER)
 				case 6:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
-				case 7:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
+				case 7:{ if(datamgr.cursor < 1) datamgr.cursor++; } break;
 				#endif
 			}
 		}
@@ -488,9 +494,8 @@ void button_action(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ if(datamgr.editable < 200) datamgr.editable++; } break;
-					case 1:{ if(datamgr.editable < 150) datamgr.editable++; } break;
-					case 2:{ if(datamgr.editable < 40) datamgr.editable++; } break;
+					case 0:{ if(datamgr.editable < 150) datamgr.editable++; } break;
+					case 1:{ if(datamgr.editable < 40) datamgr.editable++; } break;
 				}
 			}
 			#endif
@@ -509,41 +514,55 @@ void mode_handler(){
 					case 3:{ outmgr.set_contrast(datamgr.editable); } break;
 				}
 			}
-			#if defined(UNIVERSAL_COUNTER)
-			else if(datamgr.menu_page == 7){
-				switch (datamgr.cursor){
-					case 0:{ ADCManager::pwm_PD3(datamgr.pwm_converter); } break;
-					case 1:{} break;
-					case 2:{} break;
-				}
-			}
-			#endif
 		}
 
 	}
 }
 
+unsigned long charge_state = 0;
+
 void loop() {
-	if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }
-	else { datamgr.pwm_converter--; }
-	ADCManager::pwm_PD3(datamgr.pwm_converter);
+	if(millis()-charge_state > 10000){
+    	charge_state = millis();
+		uint8_t counter = 0;
+		for(int i = 0; i < 10; i++) if(!PORTD_READ(1)) counter++;
+		datamgr.is_charging = counter > 7;
+		counter = 0;
+		for(int i = 0; i < 10; i++) if(PORTD_READ(0)) counter++;
+		datamgr.is_charged = counter > 7;
+	}
+
+	if(datamgr.is_charging && !datamgr.is_charged) {
+		datamgr.counter_mode = 3;
+	}else{
+		datamgr.counter_mode = 0;
+	}
+
+	if(datamgr.counter_mode != 3){
+		if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }
+		else { datamgr.pwm_converter--; }
+		ADCManager::pwm_PD3(datamgr.pwm_converter);
+
+		button_action();
+
+		if(datamgr.alarm){
+			outmgr.do_alarm();
+		}
+
+		if(datamgr.counter_mode==0){
+			if(datamgr.rad_dose - datamgr.rad_dose_old > datamgr.save_dose_interval){
+				datamgr.rad_dose_old = datamgr.rad_dose;
+				datamgr.save_dose();
+				datamgr.rad_max = datamgr.rad_back;
+			}
+		}
+	}else{
+		ADCManager::pwm_PD3(0);
+	}
+	
 
 	if(!datamgr.is_sleeping){
 		mode_handler();
 		outmgr.update();
-	}
-	button_action();
-
-	if(datamgr.alarm){
-		outmgr.do_alarm();
-	}
-
-
-	if(datamgr.counter_mode==0){
-		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){
-			datamgr.rad_dose_old = datamgr.rad_dose;
-			datamgr.save_dose();
-			datamgr.rad_max = datamgr.rad_back;
-		}
 	}
 }

@@ -31,7 +31,7 @@ void DataManager::init(){
 
 void DataManager::read_eeprom(){
 	#if defined(UNIVERSAL_COUNTER)
-	EEPROM.get(0b1, pwm_converter);
+	EEPROM.get(0b1, save_dose_interval);
 	EEPROM.get(0b101, GEIGER_TIME);
 	EEPROM.get(0b1110, geiger_error);
 	#endif
@@ -44,7 +44,7 @@ void DataManager::read_eeprom(){
 
 void DataManager::setup_eeprom(){
 	#if defined(UNIVERSAL_COUNTER)
-	EEPROM.put(0b1, (byte)60);
+	EEPROM.put(0b1, 20);
 	EEPROM.put(0b101, (byte)21);
 	EEPROM.put(0b1110, (byte)2);
 	#endif
@@ -61,10 +61,9 @@ void DataManager::save_dose(void){
 }
 
 #if defined(UNIVERSAL_COUNTER)
-void DataManager::save_pwm(void){
-	pwm_converter = editable;
-	EEPROM.put(0b1, pwm_converter);
-	analogWrite(3, pwm_converter);
+void DataManager::save_interval(void){
+	save_dose_interval = editable;
+	EEPROM.put(0b1, save_dose_interval);
 }
 
 void DataManager::save_time(void){
@@ -81,7 +80,7 @@ void DataManager::save_error(void){
 
 void DataManager::reset_settings(void){
 	EEPROM.put(0b0, (byte)0b1);
-	EEPROM.put(0b1, (byte)71);
+	EEPROM.put(0b1, (byte)20);
 	EEPROM.put(0b10, (byte)200);
 	EEPROM.put(0b11, (byte)0);
 	EEPROM.put(0b100, (byte)60);
@@ -89,25 +88,19 @@ void DataManager::reset_settings(void){
 	EEPROM.put(0b1110, (byte)5);
 	read_eeprom();
 	update_rad_buffer();
-	analogWrite(3, pwm_converter);
 }
 
 void DataManager::setup_sbm20(){
-	EEPROM.put(0b1, (byte)60);
 	EEPROM.put(0b101, (byte)37);
 	EEPROM.put(0b1110, (byte)5);
 	read_eeprom();
-	analogWrite(3, pwm_converter);
 }
 void DataManager::setup_sbm19(){
-	EEPROM.put(0b1, (byte)60);
 	EEPROM.put(0b101, (byte)25);
 	EEPROM.put(0b1110, (byte)4);
 	read_eeprom();
-	analogWrite(3, pwm_converter);
 }
 void DataManager::setup_beta(){
-	EEPROM.put(0b1, (byte)60);
 	EEPROM.put(0b101, (byte)21);
 	EEPROM.put(0b1110, (byte)2);
 	read_eeprom();

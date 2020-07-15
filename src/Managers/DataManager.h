@@ -33,7 +33,7 @@ class DataManager{
         void setup_sbm20();
         void setup_sbm19();
         void setup_beta();
-        void save_pwm();
+        void save_interval();
         #else
         inline void save_time() {}
         inline void save_error() {}
@@ -41,7 +41,7 @@ class DataManager{
         inline void setup_sbm20() {}
         inline void setup_sbm19() {}
         inline void setup_beta() {}
-        inline void save_pwm() {}
+        inline void save_interval() {}
         #endif
         void read_eeprom();
 
@@ -74,6 +74,8 @@ class DataManager{
         bool backlight = 0;
         byte ton_BUZZ = 20; //тональность буззера
 
+        uint8_t save_dose_interval = 20;
+
         //-----------------------Флаги-----------------------
         bool detected = false;              //флаг обнаружения частицы
         bool is_sleeping = false;           //флаг сна
@@ -82,6 +84,7 @@ class DataManager{
         bool next_step = false;             //флаг для замера
         bool alarm = false;
         bool is_charging = false;
+        bool is_charged = false;
 
         //-----------------------Всё что связано с замером-----------------------
         #if defined(UNIVERSAL_COUNTER)

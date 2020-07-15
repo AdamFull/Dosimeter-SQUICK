@@ -38,7 +38,7 @@ class OutputManager{
         ADCManager *adcmgr;
         Adafruit_PCD8544 display = Adafruit_PCD8544(10, 9, 8, 7, 6);
 
-        inline int mapfloat(float x, float in_min, float in_max, float out_min, float out_max){
+        inline float mapfloat(float x, float in_min, float in_max, float out_min, float out_max){
             return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
         }
 
