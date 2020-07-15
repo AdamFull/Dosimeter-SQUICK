@@ -69,9 +69,13 @@
 #endif
 
 #define BAT_ADC_MIN 380
-#define BAT_ADC_MAX 460
+#define BAT_ADC_MAX 445
 
-#define HV_ADC_REQ 160
+#define TARGET_VOLTAGE 400			//Напряжение счётчика в вольтах
+#define CORRECT_COEFF 1.15			//Коэффициент подгонки напряжения
+
+#define HV_ADC_REQ (int)(CORRECT_COEFF*11264*TARGET_VOLTAGE/31705)
+//#define HV_ADC_REQ 160
 
 #define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
 #define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы

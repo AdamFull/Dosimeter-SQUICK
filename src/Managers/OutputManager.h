@@ -44,8 +44,12 @@ class OutputManager{
 
         unsigned long voltage_update = 0;
 
+        bool no_volt_flag = false;
+        unsigned long no_volt_ticker = 0;
+
         void draw_logo();
         void draw_main();
 
         void draw_menu();
+        void draw_bat_low();
 };

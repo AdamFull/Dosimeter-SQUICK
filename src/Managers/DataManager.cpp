@@ -49,7 +49,7 @@ void DataManager::setup_eeprom(){
 	EEPROM.put(0b1110, (byte)2);
 	#endif
 	EEPROM.put(0b0, (byte)1);
-	EEPROM.put(0b10, (byte)250);
+	EEPROM.put(0b10, (byte)120);
 	EEPROM.put(0b11, (byte)0);
 	EEPROM.put(0b100, (byte)60);
 	
@@ -81,7 +81,7 @@ void DataManager::save_error(void){
 void DataManager::reset_settings(void){
 	EEPROM.put(0b0, (byte)0b1);
 	EEPROM.put(0b1, (byte)20);
-	EEPROM.put(0b10, (byte)200);
+	EEPROM.put(0b10, (byte)120);
 	EEPROM.put(0b11, (byte)0);
 	EEPROM.put(0b100, (byte)60);
 	EEPROM.put(0b101, (byte)37);

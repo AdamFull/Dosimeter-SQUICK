@@ -147,10 +147,10 @@ void setup() {
 	PORTD_WRITE(2, LOW);
 
 	PORTD_MODE(0, INPUT); 						//настраиваем пин 0 (PD0) на вход, заряжено
-	PORTD_WRITE(0, LOW);
+	PORTD_WRITE(0, HIGH);
 
 	PORTD_MODE(1, INPUT); 						//настраиваем пин 1 (PD1) на вход, заряжается
-	PORTD_WRITE(1, LOW); 
+	PORTD_WRITE(1, HIGH); 
 
 	PORTD_MODE(3, OUTPUT); 						//pin 3 (PD3) как выход, блинк при засекании частицы
 	PORTD_WRITE(3, LOW);
@@ -158,7 +158,7 @@ void setup() {
 	PORTD_MODE(5, OUTPUT); 						//pin 5 (PD5) как выход, звуковая индикация частицы
 	PORTD_WRITE(5, LOW);
 
-	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление преобразователем
+	PORTB_MODE(3, OUTPUT); 						//pin 11 (PB3) как выход, уаравление подсветкой
 	PORTB_WRITE(3, LOW);
 
 	PORTC_MODE(2, OUTPUT);						//pin A2 (PC2) как выход, земля экрана
@@ -175,6 +175,16 @@ void setup() {
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
+
+	//ADCManager::pwm_PB3(200);
+	PORTB_WRITE(3, HIGH);
+
+	if(datamgr.battery_voltage < BAT_ADC_MIN){
+		datamgr.page = 3;
+		while(true){
+			outmgr.update();
+		}
+	}
 
 	datamgr.counter_mode = 0;
 }
@@ -487,7 +497,7 @@ void button_action(){
 				}else datamgr.editable++;
 			}else if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
-					case 0:{ datamgr.editable++; }break;
+					case 0:{ datamgr.editable+=5; }break;
 					case 1:{ if(datamgr.editable < 1) datamgr.editable++; }break;
 				}
 			}
@@ -522,23 +532,22 @@ void mode_handler(){
 unsigned long charge_state = 0;
 
 void loop() {
-	if(millis()-charge_state > 10000){
+	/*if(millis()-charge_state > 1000){
     	charge_state = millis();
 		uint8_t counter = 0;
 		for(int i = 0; i < 10; i++) if(!PORTD_READ(1)) counter++;
 		datamgr.is_charging = counter > 7;
 		counter = 0;
-		for(int i = 0; i < 10; i++) if(PORTD_READ(0)) counter++;
+		for(int i = 0; i < 10; i++) if(!PORTD_READ(0)) counter++;
 		datamgr.is_charged = counter > 7;
-	}
+	}*/
 
-	if(datamgr.is_charging && !datamgr.is_charged) {
-		datamgr.counter_mode = 3;
-	}else{
-		datamgr.counter_mode = 0;
-	}
+	datamgr.is_charging = !PORTD_READ(1);
+	datamgr.is_charged = !PORTD_READ(0);
 
-	if(datamgr.counter_mode != 3){
+	//if(datamgr.is_charging) { datamgr.counter_mode = 3; }
+
+	if(!datamgr.is_charging){
 		if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }
 		else { datamgr.pwm_converter--; }
 		ADCManager::pwm_PD3(datamgr.pwm_converter);
