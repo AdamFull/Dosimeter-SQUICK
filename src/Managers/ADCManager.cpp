@@ -2,6 +2,8 @@
 #include <avr/io.h>
 #include <Arduino.h>
 
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+
 void ADCManager::adc_init(){
     //ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
 	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
@@ -43,5 +45,11 @@ byte ADCManager::adc0_read(){
 	return result;
 }
 
-void ADCManager::pwm_PD3(byte pwm) { OCR2B = pwm; }
-void ADCManager::pwm_PB3(byte pwm) { OCR2A = pwm; }
+void ADCManager::pwm_PD3(byte pwm) {
+	sbi(TCCR2A, COM2B1);
+	OCR2B = pwm; // set pwm duty
+}
+void ADCManager::pwm_PB3(byte pwm) { 
+	sbi(TCCR2A, COM2A1);
+	OCR2A = pwm; 
+}

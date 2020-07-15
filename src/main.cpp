@@ -71,6 +71,10 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			
 			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 
+			if(datamgr.mean_mode){
+				datamgr.rad_back = (uint32_t)datamgr.mean;
+			}
+
 			#if defined(ADVANCED_ERROR)
 			if(datamgr.stat_time > datamgr.GEIGER_TIME) datamgr.stat_time = 0; //Счётчик для расчёта статистической погрешности
 			else datamgr.stat_time++;
@@ -181,17 +185,10 @@ void setup() {
 	//TCCR2A = 0b00000011;  // fast pwm
 
 	sei();
-
-	ADCManager::pwm_PD3(80);
+	//ADCManager::pwm_PD3(datamgr.pwm_converter);
 
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
-
-	//sei();
-
-	//analogWrite(3, datamgr.pwm_converter);
-
-	datamgr.end_init = true;
 }
 
 #if defined(CAN_SLEEP)
@@ -443,6 +440,11 @@ void button_action(){
 		if(!menu_mode && datamgr.counter_mode == 1 && datamgr.alarm && datamgr.next_step && datamgr.stop_timer){
 			datamgr.alarm = false;
 		}
+
+		if(!menu_mode && datamgr.counter_mode == 0){
+			datamgr.mean_mode = !datamgr.mean_mode;
+		}
+
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
 			outmgr.beep(100, 30);
 			switch (datamgr.menu_page){
@@ -510,7 +512,7 @@ void mode_handler(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ analogWrite(3, datamgr.editable); } break;
+					case 0:{ ADCManager::pwm_PD3(datamgr.pwm_converter); } break;
 					case 1:{} break;
 					case 2:{} break;
 				}
@@ -521,9 +523,11 @@ void mode_handler(){
 	}
 }
 
-unsigned long debugCounter = 0;
-
 void loop() {
+	if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }
+	else { datamgr.pwm_converter--; }
+	ADCManager::pwm_PD3(datamgr.pwm_converter);
+
 	if(!datamgr.is_sleeping){
 		mode_handler();
 		outmgr.update();
@@ -534,16 +538,6 @@ void loop() {
 		outmgr.do_alarm();
 	}
 
-	if(millis()-debugCounter > 1000){
-		debugCounter = millis();
-		if(!datamgr.editing_mode) {
-			if(adcmgr.get_hv() < HV_ADC_REQ) datamgr.pwm_converter++;
-			else datamgr.pwm_converter--;
-			ADCManager::pwm_PD3(datamgr.pwm_converter);
-			if(adcmgr.get_hv() == 0) ADCManager::pwm_PD3(60);
-			//analogWrite(3, datamgr.pwm_converter);
-		}
-	}
 
 	if(datamgr.counter_mode==0){
 		if(datamgr.rad_dose - datamgr.rad_dose_old > 20){

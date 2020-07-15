@@ -71,7 +71,7 @@
 #define BAT_ADC_MIN 368
 #define BAT_ADC_MAX 435
 
-#define HV_ADC_REQ 144
+#define HV_ADC_REQ 160
 
 #define TIMER1_PRELOAD 64910 //65535-64910=625, 15625/625=25Гц
 #define TIME_FACT 25 // 25Гц/25=1Гц секундные интервалы
@@ -116,4 +116,12 @@ static const unsigned char PROGMEM logo_Bitmap[] = {
 
 static const unsigned char PROGMEM battery_Bitmap[] = {
 	0x7f, 0xfe, 0xc0, 0x02, 0x80, 0x02, 0x80, 0x02, 0x80, 0x02, 0xc0, 0x02, 0x7f, 0xfe
+};
+
+static const unsigned char PROGMEM charge_Bitmap[] = {
+	0x18, 0x30, 0x60, 0xf8, 0x30, 0x60, 0xc0
+};
+
+static const unsigned char PROGMEM mean_Bitmap[] = {
+	0xf8, 0x00, 0x50, 0x50, 0x20, 0x50, 0x50
 };

@@ -85,6 +85,8 @@ void OutputManager::draw_main(){
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
 
+    if(datamgr->mean_mode) display.drawBitmap(0, 0, mean_Bitmap, 5, 7, BLACK);
+
     if(datamgr->counter_mode == 0){
         display.setTextColor(BLACK, WHITE);
         #if defined(ADVANCED_ERROR)
@@ -93,9 +95,9 @@ void OutputManager::draw_main(){
         uint16_t deviation = 100;
         #endif
         if(deviation > 100) deviation = 100;
-        display.setCursor(84 - (getNumOfDigits(adcmgr->get_hv())+2)*6, 13);
+        display.setCursor(84 - (getNumOfDigits(deviation)+2)*6, 13);
         display.write(240);
-        display.print(adcmgr->get_hv());
+        display.print(deviation);
         display.print("%");
         display.setTextSize(2);
         display.setCursor(0, 8);

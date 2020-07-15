@@ -65,7 +65,7 @@ class DataManager{
         #if defined(UNIVERSAL_COUNTER)
         byte geiger_error = 5;
         byte GEIGER_TIME = 37;
-        byte pwm_converter = 71;
+        byte pwm_converter = 40;
         #else
         static const byte pwm_converter = 45;
         static const byte geiger_error = 5;
@@ -81,7 +81,7 @@ class DataManager{
         bool stop_timer = false;
         bool next_step = false;             //флаг для замера
         bool alarm = false;
-        bool end_init = false;
+        bool is_charging = false;
 
         //-----------------------Всё что связано с замером-----------------------
         #if defined(UNIVERSAL_COUNTER)
@@ -102,6 +102,8 @@ class DataManager{
         byte counter_mode = 0;
         byte editable = 0;
         bool means_times = 0;
+
+        bool mean_mode = false;
 
         #if defined(DRAW_GRAPH)
         byte mass[84];
