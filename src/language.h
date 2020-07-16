@@ -79,6 +79,7 @@ static PGM_P const T_MR PROGMEM = "mR";
 static PGM_P const T_R PROGMEM = "R";
 static PGM_P const T_CPS PROGMEM = "cps";
 static PGM_P const T_MAX PROGMEM = "max";
+static PGM_P const T_OLD PROGMEM = "old";
 
 static PGM_P const T_CURSOR PROGMEM = ">";
 

@@ -18,6 +18,7 @@ OutputManager outmgr = OutputManager(&datamgr, &adcmgr);
 void button_action(void);
 void sleep(void);
 void interrupt_setup(void);
+void low_battery_kill(void);
 void(* resetFunc) (void) = 0;
 
 ISR(INT0_vect){ //внешнее прерывание //считаем импульсы от счетчика
@@ -40,7 +41,7 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 		#endif
 	}else if(datamgr.counter_mode==2){							//Режим измерения активности
 		if(datamgr.rad_buff[0]!=65535) datamgr.rad_buff[0]++; //нулевой элемент массива - текущий секундный замеp
-		//outmgr.update_request();
+		outmgr.update_request();
 	}
 	if(datamgr.page == 1) {
 		ADCManager::pwm_PD3(datamgr.pwm_converter + 10);
@@ -120,7 +121,8 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 			}
 		}else if(datamgr.counter_mode == 2){
 			//Секундный замер, сбрасываем счётчик каждую секунду
-			if(datamgr.rad_buff[0]>datamgr.rad_max) datamgr.rad_max=datamgr.rad_buff[0];
+			if(datamgr.rad_max < datamgr.rad_buff[0]) datamgr.rad_max = datamgr.rad_buff[0];
+			datamgr.sum_old=datamgr.rad_buff[0];
 			#if defined(DRAW_GRAPH)
 			datamgr.mass[datamgr.x_p]=map(datamgr.rad_buff[0], 0, datamgr.rad_max < 2 ? 2 : datamgr.rad_max, 0, 15);
             if(datamgr.x_p<83)datamgr.x_p++;
@@ -184,14 +186,10 @@ void setup() {
 	EICRA=0b00000010; //настриваем внешнее прерывание 0 по спаду
 	EIMSK |= (1 << INT0); //разрешаем внешнее прерывание 0
 
-	//ADCManager::pwm_PB3(200);
-	PORTB_WRITE(3, HIGH);
 
+	datamgr.battery_voltage = adcmgr.get_battery_voltage();
 	if(datamgr.battery_voltage < BAT_ADC_MIN){
-		datamgr.page = 3;
-		while(true){
-			outmgr.update();
-		}
+		low_battery_kill();
 	}
 
 	datamgr.counter_mode = 0;
@@ -215,7 +213,6 @@ void sleep(){
 		power_timer2_disable();					//используется для шим, он тоже не нужен.
 		power_adc_disable();					//Читать данные с батареи и с вв источника не нужно, отключаем
 		power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
-		power_usart0_disable();					//Юарт в дальнейшем тоже будет выпилен
 
 		PORTC_WRITE(2, LOW);						//Выключить экран
 		PORTC_WRITE(3, LOW);						//Выключить эмиттерный повторитель
@@ -225,7 +222,10 @@ void sleep(){
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 0;
 
-		power_all_enable();
+		power_timer1_enable();
+		power_timer2_enable();
+		power_adc_enable();
+		power_spi_enable();
 		datamgr.is_sleeping = false;
 		resetFunc();
 	}
@@ -251,6 +251,20 @@ void interrupt_setup(){
     TCCR2A = 0b00000001;  // phase correct
 
 	sei();
+}
+
+void low_battery_kill(){
+	ADCManager::pwm_PD3(0);
+	ADCManager::pwm_PB3(0);
+	//power_timer1_disable();
+	//power_timer2_disable();
+	//PORTC_WRITE(3, LOW);
+	datamgr.page = 3;
+	while(true){
+		datamgr.is_charging = !PORTD_READ(1);
+		if(datamgr.is_charging) break;
+		outmgr.update();
+	}
 }
 
 void button_action(){

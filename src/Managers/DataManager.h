@@ -95,6 +95,7 @@ class DataManager{
         uint32_t rad_sum, rad_back, rad_max, rad_dose, rad_dose_old; //сумма импульсов за все время/текущий фон/максимум фона/доза/предыдущая доза
         uint8_t time_min_old, time_min, time_sec; //счетчики времени
         uint16_t timer_time, timer_remain;
+        uint8_t sum_old = 0;
 
         unsigned long alarm_timer = 0;
 

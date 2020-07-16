@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <configuration.h>
 
 typedef uint8_t byte;
 

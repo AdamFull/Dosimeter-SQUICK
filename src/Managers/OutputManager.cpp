@@ -24,10 +24,16 @@ void OutputManager::update(){
     beep();
 
     //Battery voltage update
-    if(millis()-voltage_update > 30000){
+    if(millis()-voltage_update > 10000){
         voltage_update = millis();
         uint16_t new_voltage = adcmgr->get_battery_voltage();
-        datamgr->battery_voltage = new_voltage;
+        if(!first_meaning){
+            if(new_voltage < datamgr->battery_voltage - 10){datamgr->battery_voltage = datamgr->battery_voltage; }
+            else{ datamgr->battery_voltage = new_voltage; }
+            first_meaning = false;
+        }else{
+            datamgr->battery_voltage = new_voltage;
+        }
     }
 }
 
@@ -166,12 +172,12 @@ void OutputManager::draw_main(){
             display.setCursor(0, 8);
             display.print(datamgr->rad_buff[0]);
             display.setCursor(84 - getNumOfDigits(datamgr->rad_max)*12, 8);
-            display.print(datamgr->rad_max);
+            display.print(datamgr->sum_old);
             display.setTextSize(0);
             display.setCursor(0, 23);
             display.print(T_CPS);
             display.setCursor(84 - 3*6, 23);
-            display.print(T_MAX);
+            display.print(T_OLD);
             display.drawFastHLine(0,32,84,BLACK);
 
             #if defined(DRAW_GRAPH)

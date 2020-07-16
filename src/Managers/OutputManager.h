@@ -44,6 +44,7 @@ class OutputManager{
         }
 
         bool update_required = true;
+        bool first_meaning = true;
 
         unsigned long voltage_update = 0;
 
