@@ -12,13 +12,23 @@ void OutputManager::init(){
 }
 
 void OutputManager::update(){
-    switch (datamgr->page){
-        case 0: draw_logo(); datamgr->page = 1; break;
-        case 1: draw_main(); break;
-        case 2: draw_menu(); break;
-        case 3: draw_bat_low(); break;
+    if(update_required){
+        switch (datamgr->page){
+            case 0: draw_logo(); datamgr->page = 1; break;
+            case 1: draw_main(); break;
+            case 2: draw_menu(); break;
+            case 3: draw_bat_low(); break;
+        }
+        update_required = false;
     }
     beep();
+
+    //Battery voltage update
+    if(millis()-voltage_update > 30000){
+        voltage_update = millis();
+        uint16_t new_voltage = adcmgr->get_battery_voltage();
+        datamgr->battery_voltage = new_voltage;
+    }
 }
 
 void OutputManager::delayUs(byte dtime){
@@ -28,40 +38,37 @@ void OutputManager::delayUs(byte dtime){
 }
 
 void OutputManager::beep() { //индикация каждой частички звуком светом
-	if(datamgr->detected){
-		datamgr->detected = false;
-		int d = 30;
-			PORTB_WRITE(5, 1);
-    		while (d > 0) {
-      			PORTD_WRITE(5, 1);
-      			delayUs(datamgr->ton_BUZZ);
-      			PORTD_WRITE(5, 0);
-      			delayUs(datamgr->ton_BUZZ);
-	  			asm("nop");
-      			d--;
-    		}
-			PORTB_WRITE(5, 0);
-	}
+    if(micros() - beep_timer > 300){
+        beep_timer = micros();
+        if(datamgr->is_detected){
+            ADCManager::pwm_PD5(datamgr->ton_BUZZ);
+            PORTB_WRITE(5, HIGH);
+        }else{
+            ADCManager::pwm_PD5(0);
+            PORTB_WRITE(5, LOW);
+        }
+        datamgr->is_detected = false;
+    }
 }
 
-void OutputManager::beep(byte time, byte duration) { //индикация каждой частички звуком светом
-    int d = duration;
-	PORTB_WRITE(5, 1);
-    while (d > 0) {
-      	PORTD_WRITE(5, 1);
-      	delayUs(time);
-      	PORTD_WRITE(5, 0);
-      	delayUs(time);
-	  	asm("nop");
-      	d--;
+void OutputManager::beep(uint16_t time, byte duration) { //индикация каждой частички звуком светом
+    if(micros() - beep_timer > time){
+        beep_timer = micros();
+        if(datamgr->is_detected){
+            ADCManager::pwm_PD5(duration);
+            PORTB_WRITE(5, HIGH);
+        }else{
+            ADCManager::pwm_PD5(0);
+            PORTB_WRITE(5, LOW);
+        }
+        datamgr->is_detected = false;
     }
-	PORTB_WRITE(5, 0);
 }
 
 void OutputManager::do_alarm(){
     if(millis()-datamgr->alarm_timer > 500){
         datamgr->alarm_timer = millis();
-        datamgr->detected = true;
+        beep(200, 30); _delay_ms(50); beep(100, 50);
     }
 }
 
@@ -70,17 +77,12 @@ void OutputManager::draw_logo(){
     display.clearDisplay();
     display.drawBitmap(0, 0, logo_Bitmap, 84, 48, BLACK);
 	display.display();
-    delay(LOGO_TIME);
+    _delay_ms(LOGO_TIME);
     #endif
 }
 
 void OutputManager::draw_main(){
     display.clearDisplay();
-    if(millis()-voltage_update > 30000){
-        voltage_update = millis();
-        uint16_t new_voltage = adcmgr->get_battery_voltage();
-        datamgr->battery_voltage = new_voltage;
-    }
     int coeff = mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
@@ -234,85 +236,108 @@ void OutputManager::draw_menu(){
         }break;
 
         case 2:{
-            #if defined(UNIVERSAL_COUNTER)
-            if (datamgr->cursor==0) display.print(T_CURSOR);
-            display.print(GCOUNTER);
-            display.setCursor(0, 20);
-        
-            if (datamgr->cursor==1) display.print(T_CURSOR);
-            display.print(TONE);
-            if(datamgr->cursor==1 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 20);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->ton_BUZZ)*6, 20);
-                display.print(datamgr->ton_BUZZ);
-            }
-            display.setCursor(0, 30);
-            display.setTextColor(BLACK, WHITE);    
+            if(datamgr->cursor < 4){
+                uint8_t editable_perc = map(datamgr->editable, 0, 255, 0, 100);
+                #if defined(UNIVERSAL_COUNTER)
+                if (datamgr->cursor==0) display.print(T_CURSOR);
+                display.print(GCOUNTER);
+                display.setCursor(0, 20);
+            
+                if (datamgr->cursor==1) display.print(T_CURSOR);
+                display.print(TONE);
+                if(datamgr->cursor==1 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 20);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    uint8_t ton_buzz = map(datamgr->ton_BUZZ, 0, 255, 0, 100);
+                    display.setCursor(84 - getNumOfDigits(ton_buzz)*10, 20);
+                    display.print(ton_buzz);
+                }
+                display.print("%");
+                display.setCursor(0, 30);
+                display.setTextColor(BLACK, WHITE);    
 
-            if (datamgr->cursor==2) display.print(T_CURSOR);
-            display.print(BACKLIGHT);
-            if(datamgr->cursor==2 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 30);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 30);
-                display.print(datamgr->backlight);
-            }
-            display.setCursor(0, 40);
-            display.setTextColor(BLACK, WHITE);
+                if (datamgr->cursor==2) display.print(T_CURSOR);
+                display.print(BACKLIGHT);
+                if(datamgr->cursor==2 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 30);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    uint8_t backlight = map(datamgr->backlight, 0, 255, 0, 100);
+                    display.setCursor(84 - getNumOfDigits(backlight)*10, 30);
+                    display.print(backlight);
+                }
+                display.print("%");
+                display.setCursor(0, 40);
+                display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==3) display.print(T_CURSOR);
-            display.print(CONTRAST);
-            if(datamgr->cursor==3 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 40);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->contrast)*6, 40);
-                display.print(datamgr->contrast);
-            }
-            #else
-            if (datamgr->cursor==0) display.print(T_CURSOR);
-            display.print(TONE);
-            if(datamgr->cursor==0 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 10);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->ton_BUZZ)*6, 10);
-                display.print(datamgr->ton_BUZZ);
-            }
-            display.setCursor(0, 20);
-            display.setTextColor(BLACK, WHITE);    
+                if (datamgr->cursor==3) display.print(T_CURSOR);
+                display.print(CONTRAST);
+                if(datamgr->cursor==3 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 40);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    uint8_t contrast = map(datamgr->contrast, 0, 255, 0, 100);
+                    display.setCursor(84 - getNumOfDigits(contrast)*10, 40);
+                    display.print(contrast);
+                }
+                display.print("%");
+                #else
+                if (datamgr->cursor==0) display.print(T_CURSOR);
+                display.print(TONE);
+                if(datamgr->cursor==0 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*6, 10);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->ton_BUZZ)*6, 10);
+                    display.print(datamgr->ton_BUZZ);
+                }
+                display.setCursor(0, 20);
+                display.setTextColor(BLACK, WHITE);    
 
-            if (datamgr->cursor==1) display.print(T_CURSOR);
-            display.print(BACKLIGHT);
-            if(datamgr->cursor==1 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 20);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
-            }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 20);
-                display.print(datamgr->backlight);
-            }
-            display.setCursor(0, 30);
-            display.setTextColor(BLACK, WHITE);
+                if (datamgr->cursor==1) display.print(T_CURSOR);
+                display.print(BACKLIGHT);
+                if(datamgr->cursor==1 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*6, 20);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->backlight)*6, 20);
+                    display.print(datamgr->backlight);
+                }
+                display.setCursor(0, 30);
+                display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==2) display.print(T_CURSOR);
-            display.print(CONTRAST);
-            if(datamgr->cursor==2 && datamgr->editing_mode){
-                display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 30);
-                display.setTextColor(WHITE, BLACK);
-                display.print(datamgr->editable);
+                if (datamgr->cursor==2) display.print(T_CURSOR);
+                display.print(CONTRAST);
+                if(datamgr->cursor==2 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(editable_perc)*6, 30);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(editable_perc);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->contrast)*6, 30);
+                    display.print(datamgr->contrast);
+                }
+                #endif
             }else{
-                display.setCursor(84 - getNumOfDigits(datamgr->contrast)*6, 30);
-                display.print(datamgr->contrast);
+                 if (datamgr->cursor==4) display.print(T_CURSOR);
+                display.print(DOSE_SAVE);
+                if(datamgr->cursor==4 && datamgr->editing_mode){
+                    display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 10);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - getNumOfDigits(datamgr->save_dose_interval)*10, 10);
+                    display.print(datamgr->save_dose_interval);
+                }
+                display.setCursor(0, 20);
+                display.setTextColor(BLACK, WHITE); 
             }
-            #endif
+            
             display.setTextColor(BLACK, WHITE);
         }break;
 
@@ -444,7 +469,7 @@ void OutputManager::going_to_sleep(){
     display.setCursor(0, 0);
     display.print(POFF);
     display.display();
-    delay(1000);
+    _delay_ms(1000);
     display.clearDisplay();
     display.display();
 }

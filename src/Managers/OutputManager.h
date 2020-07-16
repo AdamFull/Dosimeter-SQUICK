@@ -14,7 +14,8 @@ class OutputManager{
         void init();
         void update();
         void beep();
-        void beep(byte time, byte duration);
+        void beep(uint16_t time, byte duration);
+        inline void update_request() { update_required = true; }
         #if defined(CAN_SLEEP)
         void going_to_sleep();
         #else
@@ -42,10 +43,14 @@ class OutputManager{
             return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
         }
 
+        bool update_required = true;
+
         unsigned long voltage_update = 0;
 
         bool no_volt_flag = false;
         unsigned long no_volt_ticker = 0;
+
+        unsigned long beep_timer = 0;
 
         void draw_logo();
         void draw_main();

@@ -47,9 +47,14 @@ byte ADCManager::adc0_read(){
 
 void ADCManager::pwm_PD3(byte pwm) {
 	sbi(TCCR2A, COM2B1);
-	OCR2B = pwm; // set pwm duty
+	OCR2B = pwm;
 }
 void ADCManager::pwm_PB3(byte pwm) { 
 	sbi(TCCR2A, COM2A1);
 	OCR2A = pwm; 
+}
+
+void ADCManager::pwm_PD5(byte pwm){
+	sbi(TCCR0A, COM0B1);
+	OCR0B = pwm;
 }

@@ -86,6 +86,7 @@ void DataManager::reset_settings(void){
 	EEPROM.put(0b100, (byte)60);
 	EEPROM.put(0b101, (byte)37);
 	EEPROM.put(0b1110, (byte)5);
+	EEPROM.put(0b1111, (byte)5);
 	read_eeprom();
 	update_rad_buffer();
 }

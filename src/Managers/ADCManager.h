@@ -20,6 +20,7 @@ class ADCManager{
 
         static void pwm_PD3(byte pwm);
         static void pwm_PB3(byte pwm);
+        static void pwm_PD5(byte pwm);
 
     private:
         byte adc0_read();
