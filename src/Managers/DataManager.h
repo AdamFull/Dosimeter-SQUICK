@@ -34,6 +34,7 @@ class DataManager{
         void setup_sbm19();
         void setup_beta();
         void save_interval();
+        void save_alarm();
         #else
         inline void save_time() {}
         inline void save_error() {}
@@ -82,6 +83,9 @@ class DataManager{
         bool stop_timer = false;
         bool next_step = false;             //флаг для замера
         bool alarm = false;
+        bool mute = false;
+        bool no_alarm = false;
+        bool do_alarm = false;
         bool is_charging = false;
         bool is_charged = false;
         bool is_detected = false;
@@ -116,6 +120,8 @@ class DataManager{
 
         uint16_t battery_voltage = 0;
         //display//
+
+        uint8_t alarm_threshold = 100;
 
         byte has_eeprom = 1;
 

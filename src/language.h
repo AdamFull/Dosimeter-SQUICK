@@ -24,6 +24,7 @@ static PGM_P const TIME PROGMEM = "Bpeмя:";
 static PGM_P const MEANS PROGMEM = "Измepeний:";
 static PGM_P const BEGIN PROGMEM = "Haчaть";
 static PGM_P const MODE_SEC PROGMEM = "Секунда";
+static PGM_P const ALARM PROGMEM = "Tpeвoгa:";
 #if defined(UNIVERSAL_COUNTER)
 static PGM_P const GCOUNTER PROGMEM = "Cчeтчиk";
 static PGM_P const CUSTOM PROGMEM = "Cвoй";
@@ -32,7 +33,7 @@ static PGM_P const GTIME PROGMEM = "Bpемя изм:";
 static PGM_P const ERROR PROGMEM = "Oшибka:";
 #endif
 #if defined(CAN_SLEEP)
-static PGM_P const POFF PROGMEM = "Bыkлючить";
+static PGM_P const POFF PROGMEM = "Coн";
 static PGM_P const SURE PROGMEM = "Увepeны?";
 #endif
 
@@ -66,7 +67,7 @@ static PGM_P const GTIME PROGMEM = "Means time:";
 static PGM_P const ERROR PROGMEM = "Error:";
 #endif
 #if defined(CAN_SLEEP)
-static PGM_P const POFF PROGMEM = "Power off";
+static PGM_P const POFF PROGMEM = "Sleep";
 static PGM_P const SURE PROGMEM = "Sure?";
 #endif
 #endif

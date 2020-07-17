@@ -39,6 +39,7 @@ void DataManager::read_eeprom(){
 	EEPROM.get(0b11, backlight);
 	EEPROM.get(0b100, contrast);
 	EEPROM.get(0b1001, rad_sum);
+	EEPROM.get(0b1111, alarm_threshold);
     update_rad_buffer();
 }
 
@@ -54,6 +55,7 @@ void DataManager::setup_eeprom(){
 	EEPROM.put(0b100, (byte)60);
 	
 	EEPROM.put(0b1001, (byte)0);
+	EEPROM.put(0b1111, (byte)100);
 }
 
 void DataManager::save_dose(void){
@@ -86,7 +88,7 @@ void DataManager::reset_settings(void){
 	EEPROM.put(0b100, (byte)60);
 	EEPROM.put(0b101, (byte)37);
 	EEPROM.put(0b1110, (byte)5);
-	EEPROM.put(0b1111, (byte)5);
+	EEPROM.put(0b1111, (byte)100);
 	read_eeprom();
 	update_rad_buffer();
 }
@@ -122,6 +124,11 @@ void DataManager::save_bl(void){
 void DataManager::save_contrast(void){
 	contrast = editable;
 	EEPROM.put(0b100, contrast);
+}
+
+void DataManager::save_alarm(){
+	alarm_threshold = editable;
+	EEPROM.put(0b1111, alarm_threshold);
 }
 
 void DataManager::reset_dose(void){

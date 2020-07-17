@@ -10,10 +10,21 @@ void ADCManager::adc_init(){
 }
 
 uint16_t ADCManager::get_battery_voltage(){
+	uint16_t resulting_value = 0;
 	for(int i = 0; i < 30; i++){
 		batValue = (batValue * (avgFactor - 1) + analogRead(A0)) / avgFactor;
 	}
-	return batValue;
+	if(first_mean){
+		for(uint8_t i = 0; i < BAT_BANK_SIZE; i++) battery_bank[i] = batValue;
+		first_mean = false;
+	}else{
+		battery_bank[0] = batValue;
+		for(uint8_t k = BAT_BANK_SIZE-1; k>0; k--) battery_bank[k]=battery_bank[k-1]; //перезапись массива
+	}
+	for(uint8_t i = 0; i < BAT_BANK_SIZE; i++) resulting_value += battery_bank[i];
+	resulting_value = resulting_value/BAT_BANK_SIZE;
+	
+	return resulting_value;
 }
 
 uint16_t ADCManager::get_hv()

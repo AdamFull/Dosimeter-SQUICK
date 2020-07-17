@@ -16,15 +16,8 @@ class OutputManager{
         void beep();
         void beep(uint16_t time, byte duration);
         inline void update_request() { update_required = true; }
-        #if defined(CAN_SLEEP)
-        void going_to_sleep();
-        #else
-        inline void going_to_sleep() {}
-        #endif
 
         inline void set_contrast(byte contrast) { display.setContrast(contrast); }
-
-        void do_alarm();
     
     private:
         void delayUs(byte dtime);
@@ -44,7 +37,6 @@ class OutputManager{
         }
 
         bool update_required = true;
-        bool first_meaning = true;
 
         unsigned long voltage_update = 0;
 

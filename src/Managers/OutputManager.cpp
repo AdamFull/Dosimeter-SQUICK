@@ -26,14 +26,7 @@ void OutputManager::update(){
     //Battery voltage update
     if(millis()-voltage_update > 10000){
         voltage_update = millis();
-        uint16_t new_voltage = adcmgr->get_battery_voltage();
-        if(!first_meaning){
-            if(new_voltage < datamgr->battery_voltage - 10){datamgr->battery_voltage = datamgr->battery_voltage; }
-            else{ datamgr->battery_voltage = new_voltage; }
-            first_meaning = false;
-        }else{
-            datamgr->battery_voltage = new_voltage;
-        }
+        datamgr->battery_voltage = adcmgr->get_battery_voltage();
     }
 }
 
@@ -44,16 +37,18 @@ void OutputManager::delayUs(byte dtime){
 }
 
 void OutputManager::beep() { //индикация каждой частички звуком светом
-    if(micros() - beep_timer > 300){
-        beep_timer = micros();
-        if(datamgr->is_detected){
-            ADCManager::pwm_PD5(datamgr->ton_BUZZ);
-            PORTB_WRITE(5, HIGH);
-        }else{
-            ADCManager::pwm_PD5(0);
-            PORTB_WRITE(5, LOW);
+    if(!datamgr->mute && !datamgr->do_alarm){
+        if(micros() - beep_timer > datamgr->ton_BUZZ*2){
+            beep_timer = micros();
+            if(datamgr->is_detected){
+                ADCManager::pwm_PD5(200);
+                PORTB_WRITE(5, HIGH);
+            }else{
+                ADCManager::pwm_PD5(0);
+                PORTB_WRITE(5, LOW);
+            }
+            datamgr->is_detected = false;
         }
-        datamgr->is_detected = false;
     }
 }
 
@@ -71,17 +66,10 @@ void OutputManager::beep(uint16_t time, byte duration) { //индикация к
     }
 }
 
-void OutputManager::do_alarm(){
-    if(millis()-datamgr->alarm_timer > 500){
-        datamgr->alarm_timer = millis();
-        beep(200, 30); _delay_ms(50); beep(100, 50);
-    }
-}
-
 void OutputManager::draw_logo(){
     #if defined(SHOW_LOGO)
     display.clearDisplay();
-    display.drawBitmap(0, 0, logo_Bitmap, 84, 48, BLACK);
+    display.drawBitmap(22, 5, logo_Bitmap, 40, 38, BLACK);
 	display.display();
     _delay_ms(LOGO_TIME);
     #endif
@@ -93,17 +81,19 @@ void OutputManager::draw_main(){
 
     display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
     display.fillRect(83-coeff, 1, 12, 5, BLACK);
-    if(datamgr->is_charging) display.drawBitmap(60, 0, charge_Bitmap, 5, 7, BLACK);
+    if(datamgr->is_charging) display.drawBitmap(60, 0, charge_Bitmap, 7, 7, BLACK);
 
-    if(datamgr->mean_mode) display.drawBitmap(0, 0, mean_Bitmap, 5, 7, BLACK);
+    if(!datamgr->mute) display.drawBitmap(0, 0, speaker_Bitmap, 7, 7, BLACK);
+    if(!datamgr->no_alarm) display.drawBitmap(8, 0, alarm_Bitmap, 7, 7, BLACK);
+    if(datamgr->mean_mode) display.drawBitmap(17, 0, mean_Bitmap, 7, 7, BLACK);
 
     if(datamgr->is_charging){
-        uint8_t progress = map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 42);
+        uint8_t progress = map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX + 20, 0, 42);
         display.drawBitmap(17, 12, big_battery_Bitmap, 50, 24, BLACK);
         display.fillRect(19, 14, progress, 20, BLACK);
         display.setCursor(0, 0);
         display.print("V:");
-        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 3.6, 4.2));
+        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX + 20, 3.6, 4.2));
     }else{
         if(datamgr->counter_mode == 0){
             display.setTextColor(BLACK, WHITE);
@@ -171,7 +161,7 @@ void OutputManager::draw_main(){
             display.setTextSize(2);
             display.setCursor(0, 8);
             display.print(datamgr->rad_buff[0]);
-            display.setCursor(84 - getNumOfDigits(datamgr->rad_max)*12, 8);
+            display.setCursor(84 - getNumOfDigits(datamgr->sum_old)*12, 8);
             display.print(datamgr->sum_old);
             display.setTextSize(0);
             display.setCursor(0, 23);
@@ -252,12 +242,12 @@ void OutputManager::draw_menu(){
                 if (datamgr->cursor==1) display.print(T_CURSOR);
                 display.print(TONE);
                 if(datamgr->cursor==1 && datamgr->editing_mode){
-                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 20);
+                    display.setCursor(84 - (getNumOfDigits(editable_perc)+1)*6, 20);
                     display.setTextColor(WHITE, BLACK);
                     display.print(editable_perc);
                 }else{
                     uint8_t ton_buzz = map(datamgr->ton_BUZZ, 0, 255, 0, 100);
-                    display.setCursor(84 - getNumOfDigits(ton_buzz)*10, 20);
+                    display.setCursor(84 - (getNumOfDigits(ton_buzz)+1)*6, 20);
                     display.print(ton_buzz);
                 }
                 display.print("%");
@@ -267,12 +257,12 @@ void OutputManager::draw_menu(){
                 if (datamgr->cursor==2) display.print(T_CURSOR);
                 display.print(BACKLIGHT);
                 if(datamgr->cursor==2 && datamgr->editing_mode){
-                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 30);
+                    display.setCursor(84 - (getNumOfDigits(editable_perc)+1)*6, 30);
                     display.setTextColor(WHITE, BLACK);
                     display.print(editable_perc);
                 }else{
                     uint8_t backlight = map(datamgr->backlight, 0, 255, 0, 100);
-                    display.setCursor(84 - getNumOfDigits(backlight)*10, 30);
+                    display.setCursor(84 - (getNumOfDigits(backlight)+1)*6, 30);
                     display.print(backlight);
                 }
                 display.print("%");
@@ -282,12 +272,12 @@ void OutputManager::draw_menu(){
                 if (datamgr->cursor==3) display.print(T_CURSOR);
                 display.print(CONTRAST);
                 if(datamgr->cursor==3 && datamgr->editing_mode){
-                    display.setCursor(84 - getNumOfDigits(editable_perc)*10, 40);
+                    display.setCursor(84 - (getNumOfDigits(editable_perc)+1)*6, 40);
                     display.setTextColor(WHITE, BLACK);
                     display.print(editable_perc);
                 }else{
                     uint8_t contrast = map(datamgr->contrast, 0, 255, 0, 100);
-                    display.setCursor(84 - getNumOfDigits(contrast)*10, 40);
+                    display.setCursor(84 - (getNumOfDigits(contrast)+1)*6, 40);
                     display.print(contrast);
                 }
                 display.print("%");
@@ -330,17 +320,30 @@ void OutputManager::draw_menu(){
                 }
                 #endif
             }else{
-                 if (datamgr->cursor==4) display.print(T_CURSOR);
+                if (datamgr->cursor==4) display.print(T_CURSOR);
                 display.print(DOSE_SAVE);
                 if(datamgr->cursor==4 && datamgr->editing_mode){
-                    display.setCursor(84 - getNumOfDigits(datamgr->editable)*6, 10);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*4, 10);
                     display.setTextColor(WHITE, BLACK);
                     display.print(datamgr->editable);
                 }else{
-                    display.setCursor(84 - getNumOfDigits(datamgr->save_dose_interval)*10, 10);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->save_dose_interval)+1)*4, 10);
                     display.print(datamgr->save_dose_interval);
                 }
                 display.setCursor(0, 20);
+                display.setTextColor(BLACK, WHITE);
+
+                if (datamgr->cursor==5) display.print(T_CURSOR);
+                display.print(ALARM);
+                if(datamgr->cursor==5 && datamgr->editing_mode){
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*4, 20);
+                    display.setTextColor(WHITE, BLACK);
+                    display.print(datamgr->editable);
+                }else{
+                    display.setCursor(84 - (getNumOfDigits(datamgr->alarm_threshold)+1)*4, 20);
+                    display.print(datamgr->alarm_threshold);
+                }
+                display.setCursor(0, 30);
                 display.setTextColor(BLACK, WHITE); 
             }
             
@@ -424,9 +427,9 @@ void OutputManager::draw_menu(){
         }break;
 
         case 7:{                            //Geiger counter custom
-            if (datamgr->cursor==1) display.print(T_CURSOR);
+            if (datamgr->cursor==0) display.print(T_CURSOR);
             display.print(GTIME);
-            if(datamgr->cursor==1 && datamgr->editing_mode){
+            if(datamgr->cursor==0 && datamgr->editing_mode){
                 display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*6, 10);
                 display.setTextColor(WHITE, BLACK);
                 display.print(datamgr->editable);
@@ -438,9 +441,9 @@ void OutputManager::draw_menu(){
             display.setCursor(0, 20);
             display.setTextColor(BLACK, WHITE);
 
-            if (datamgr->cursor==2) display.print(T_CURSOR);
+            if (datamgr->cursor==1) display.print(T_CURSOR);
             display.print(ERROR);
-            if(datamgr->cursor==2 && datamgr->editing_mode){
+            if(datamgr->cursor==1 && datamgr->editing_mode){
                 display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*6, 20);
                 display.setTextColor(WHITE, BLACK);
                 display.write(240);
@@ -468,15 +471,3 @@ void OutputManager::draw_bat_low(){
         no_volt_flag = !no_volt_flag;
     }
 }
-
-#if defined(CAN_SLEEP)
-void OutputManager::going_to_sleep(){
-    display.clearDisplay();
-    display.setCursor(0, 0);
-    display.print(POFF);
-    display.display();
-    _delay_ms(1000);
-    display.clearDisplay();
-    display.display();
-}
-#endif

@@ -29,10 +29,7 @@ ISR(INT0_vect){ //внешнее прерывание //считаем импу�
 		#else
 			if(++datamgr.rad_sum>999999UL*3600/GEIGER_TIME) datamgr.rad_sum=999999UL*3600/GEIGER_TIME; //общая сумма импульсов
 		#endif
-		if(datamgr.page == 1){
-			if(datamgr.rad_back < 300) outmgr.update_request();
-			datamgr.is_detected = true;
-		}
+		if(datamgr.page == 1 && !datamgr.do_alarm){ datamgr.is_detected = true; }
 	}else if(datamgr.counter_mode==1){							//Режим измерения активности
 		#if defined(UNIVERSAL_COUNTER)
 			if(!datamgr.stop_timer) if(++datamgr.rad_back>999999UL*3600/datamgr.GEIGER_TIME) datamgr.rad_back=999999UL*3600/datamgr.GEIGER_TIME; //Сумма импульсов для режима измерения
@@ -102,6 +99,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
             if(datamgr.x_p==83){
                 for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
             }
+			if(datamgr.rad_max > 1) datamgr.rad_max--;		//Потихоньку сбрасываем максимум
 			#endif
 
 		}else if(datamgr.counter_mode == 1){
@@ -116,7 +114,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
 				datamgr.timer_remain--;
 				if(datamgr.timer_remain == 0){
 					datamgr.stop_timer = true;
-					datamgr.alarm = true;
+					datamgr.do_alarm = true;
 				}
 			}
 		}else if(datamgr.counter_mode == 2){
@@ -130,6 +128,7 @@ ISR(TIMER1_OVF_vect){ //прерывание по переполнению Timer
                 for(byte i=0;i<83;i++)datamgr.mass[i]=datamgr.mass[i+1];
             }
 			#endif
+			if(datamgr.rad_max > 1) datamgr.rad_max--;		//Потихоньку сбрасываем максимум
 			datamgr.rad_buff[0]=0; //сбрасываем счетчик импульсов
 		}
 	}
@@ -178,8 +177,8 @@ void setup() {
 	PORTC_WRITE(3, LOW);
 
 
-	PORTC_WRITE(2, HIGH);						//Включить экран
-	PORTC_WRITE(3, HIGH);						//Включить эмиттерный повторитель
+	PORTC_WRITE(3, HIGH);						//Включить экран
+	PORTC_WRITE(2, HIGH);						//Включить эмиттерный повторитель
 	
 	interrupt_setup();
 
@@ -198,35 +197,27 @@ void setup() {
 #if defined(CAN_SLEEP)
 void sleep(){
 	if(!datamgr.is_sleeping){
-		ADCManager::pwm_PD3(0);		//Отключить шим на преобразователь
 		ADCManager::pwm_PB3(0);		//Отключить шим на экран
+		//TODO: Снизить частоту процессора до 1 мгц
+		datamgr.update_rad_buffer();
 		
 		datamgr.is_sleeping = true;
 		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
-		btn_set.setTimeout(1);
+		btn_set.setTimeout(10);
 		//Замедляю микроконтроллер в 6 раз, частота 250 кГц (Остальное слишком медленно, он не хочет просыпаться)
 		CLKPR = 1<<CLKPCE;
-    	CLKPR = 6;
-		cli();
-		//Отключаю всё кроме таймера 0, т.к. он нужен для обработки кнопки.
-		power_timer1_disable();					//используется для расчётов, в выключеном состоянии они не нужны
-		power_timer2_disable();					//используется для шим, он тоже не нужен.
-		power_adc_disable();					//Читать данные с батареи и с вв источника не нужно, отключаем
-		power_spi_disable();					//SPI в принципе не используется, нужно будет его тоже отключить
+    	CLKPR = 3;
 
-		PORTC_WRITE(2, LOW);						//Выключить экран
-		PORTC_WRITE(3, LOW);						//Выключить эмиттерный повторитель
-		sei();
+		PORTC_WRITE(3, LOW);						//Выключить экран
 	}else{
 		//Ставим делитель обратно, частота 16 МГц
 		CLKPR = 1<<CLKPCE;
     	CLKPR = 0;
 
-		power_timer1_enable();
-		power_timer2_enable();
-		power_adc_enable();
-		power_spi_enable();
+		btn_set.setTimeout(1000);
+
 		datamgr.is_sleeping = false;
+		PORTC_WRITE(3, HIGH);
 		resetFunc();
 	}
 	
@@ -256,9 +247,6 @@ void interrupt_setup(){
 void low_battery_kill(){
 	ADCManager::pwm_PD3(0);
 	ADCManager::pwm_PB3(0);
-	//power_timer1_disable();
-	//power_timer2_disable();
-	//PORTC_WRITE(3, LOW);
 	datamgr.page = 3;
 	while(true){
 		datamgr.is_charging = !PORTD_READ(1);
@@ -290,16 +278,17 @@ void button_action(){
 		btn_reset.resetStates();
 		btn_set.resetStates();
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
+		if(!menu_mode && !btn_set.isHold()) datamgr.no_alarm = !datamgr.no_alarm;
 		if(menu_mode && !editing_mode){										//Если находимся в меню
-			outmgr.beep(300, 100); _delay_ms(50); outmgr.beep(400, 120); 
-			if(datamgr.menu_page == 0) {datamgr.page = 1; datamgr.alarm = false;}
+			datamgr.is_detected = true;
+			if(datamgr.menu_page == 0) {datamgr.page = 1; datamgr.do_alarm = false;}
 			else if(datamgr.menu_page == 6) datamgr.menu_page = 2;
 			else if(datamgr.menu_page == 7) datamgr.menu_page = 6;
 			else datamgr.menu_page = 0;
 			datamgr.cursor = 0;
 		}
 		if(editing_mode){
-			outmgr.beep(300, 120); _delay_ms(50); outmgr.beep(450, 100);
+			datamgr.is_detected = true;
 			datamgr.editing_mode = false;
 		}
 		if(!menu_mode && datamgr.counter_mode == 1){
@@ -309,21 +298,23 @@ void button_action(){
 		}
 		outmgr.update_request();
 	}else if(btn_reset.isClick() && !btn_reset_isHolded){					//Клик кнопки ресет
-		if(menu_mode && !editing_mode && datamgr.cursor > 0) { outmgr.beep(300, 100); datamgr.cursor--; }
+		if(!menu_mode && !datamgr.do_alarm) datamgr.mute = !datamgr.mute;
+		if(!menu_mode && datamgr.do_alarm) datamgr.no_alarm = !datamgr.no_alarm;
+		if(menu_mode && !editing_mode && datamgr.cursor > 0) { datamgr.is_detected = true; datamgr.cursor--; }
 		if(editing_mode){ 
 			if(datamgr.menu_page == 2){
 				#if defined(UNIVERSAL_COUNTER)
-				if(datamgr.cursor == 1) datamgr.editable-=5;
-				if(datamgr.cursor == 2) datamgr.editable-=51;
-				if(datamgr.cursor == 3) datamgr.editable-=5;
-				if(datamgr.cursor == 4) datamgr.editable--;
-				if(datamgr.cursor == 5) datamgr.editable--;
+				if(datamgr.cursor == 1 && datamgr.editable > 0) datamgr.editable-=5;
+				if(datamgr.cursor == 2 && datamgr.editable > 0) datamgr.editable-=51;
+				if(datamgr.cursor == 3 && datamgr.editable > 0) datamgr.editable-=5;
+				if(datamgr.cursor == 4 && datamgr.editable > 0) datamgr.editable--;
+				if(datamgr.cursor == 5 && datamgr.editable > 0) datamgr.editable-=5;
 				#else
-				if(datamgr.cursor == 0) datamgr.editable-=5;
-				if(datamgr.cursor == 1) datamgr.editable-=51;
-				if(datamgr.cursor == 2) datamgr.editable-=5;
-				if(datamgr.cursor == 3) datamgr.editable--;
-				if(datamgr.cursor == 4) datamgr.editable--;
+				if(datamgr.cursor == 0 && datamgr.editable > 0) datamgr.editable-=5;
+				if(datamgr.cursor == 1 && datamgr.editable > 0) datamgr.editable-=51;
+				if(datamgr.cursor == 2 && datamgr.editable > 0) datamgr.editable-=5;
+				if(datamgr.cursor == 3 && datamgr.editable > 0) datamgr.editable--;
+				if(datamgr.cursor == 4 && datamgr.editable > 0) datamgr.editable-=5;
 				#endif
 			}else if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
@@ -342,8 +333,9 @@ void button_action(){
 		}
 		outmgr.update_request();
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
+		if(datamgr.is_sleeping) sleep();
 		if(menu_mode && !editing_mode) {
-			outmgr.beep(300, 100); _delay_ms(50); outmgr.beep(200, 120);
+			datamgr.is_detected = true;
 			switch (datamgr.menu_page){
 				case 0:{
 					switch (datamgr.cursor){
@@ -376,11 +368,13 @@ void button_action(){
 						case 2:{ datamgr.editable = datamgr.backlight; }break;
 						case 3:{ datamgr.editable = datamgr.contrast; }break;
 						case 4:{ datamgr.editable = datamgr.save_dose_interval; }break;
+						case 5:{ datamgr.editable = datamgr.alarm_threshold; }break;
 						#else
 						case 0:{ datamgr.editable = datamgr.ton_BUZZ; }break;
 						case 1:{ datamgr.editable = datamgr.backlight; }break;
 						case 2:{ datamgr.editable = datamgr.contrast; }break;
 						case 3:{ datamgr.editable = datamgr.save_dose_interval; }break;
+						case 4:{ datamgr.editable = datamgr.alarm_threshold; }break;
 						#endif
 					}
 					#if defined(UNIVERSAL_COUNTER)
@@ -415,7 +409,6 @@ void button_action(){
 					switch (datamgr.cursor){								//Вообще это диалог выбора, но пока что это не он
 						case 0:{
 						#if defined(CAN_SLEEP)
-						outmgr.going_to_sleep(); 
 						sleep(); 
 						#endif
 						}break;
@@ -444,7 +437,7 @@ void button_action(){
 			}
 		}
 		if(menu_mode && editing_mode){
-			outmgr.beep(400, 100); _delay_ms(50); outmgr.beep(100, 120);
+			datamgr.is_detected = true;
 			if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
 					case 0:{ datamgr.time_min = datamgr.editable; }break;
@@ -466,13 +459,13 @@ void button_action(){
 					case 2:{ datamgr.save_bl(); }break;
 					case 3:{ datamgr.save_contrast(); }break;
 					case 4:{ datamgr.save_interval(); }break;
-					case 5:{ datamgr.save_interval(); }break;
+					case 5:{ datamgr.save_alarm(); }break;
 					#else
 					case 0:{ datamgr.save_tone(); }break;
 					case 1:{ datamgr.save_bl(); }break;
 					case 2:{ datamgr.save_contrast(); }break;
 					case 3:{ datamgr.save_interval(); }break;
-					case 4:{ datamgr.save_interval(); }break;
+					case 4:{ datamgr.save_alarm(); }break;
 					#endif
 				}
 			}
@@ -485,13 +478,13 @@ void button_action(){
 			datamgr.rad_back = 0;
 			datamgr.next_step = true;
 			datamgr.stop_timer = false;
-			datamgr.alarm = false;
+			datamgr.do_alarm = false;
 			datamgr.time_min = datamgr.time_min_old;
 			datamgr.timer_remain = datamgr.timer_time;
 			datamgr.time_sec = 0;
 		}
-		if(!menu_mode && datamgr.counter_mode == 1 && datamgr.alarm && datamgr.next_step && datamgr.stop_timer){
-			datamgr.alarm = false;
+		if(!menu_mode && datamgr.counter_mode == 1 && datamgr.do_alarm && datamgr.next_step && datamgr.stop_timer){
+			datamgr.do_alarm = false;
 		}
 
 		if(!menu_mode && datamgr.counter_mode == 0){
@@ -499,7 +492,7 @@ void button_action(){
 		}
 
 		if(menu_mode && !editing_mode){						//Сдвинуть курсор, если можно
-			outmgr.beep(300, 120);
+			datamgr.is_detected = true;
 			switch (datamgr.menu_page){
 				#if defined(CAN_SLEEP)
 				case 0:{ if(datamgr.cursor < 3) datamgr.cursor++; } break;
@@ -508,7 +501,7 @@ void button_action(){
 				#endif
 				case 1:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
 				#if defined(UNIVERSAL_COUNTER)
-				case 2:{ if(datamgr.cursor < 4) datamgr.cursor++; } break;
+				case 2:{ if(datamgr.cursor < 5) datamgr.cursor++; } break;
 				#else
 				case 2:{ if(datamgr.cursor < 2) datamgr.cursor++; } break;
 				#endif
@@ -526,17 +519,17 @@ void button_action(){
 		if(editing_mode){ 
 			if(datamgr.menu_page == 2){
 				#if defined(UNIVERSAL_COUNTER)
-				if(datamgr.cursor == 1) datamgr.editable+=5;
-				if(datamgr.cursor == 2) datamgr.editable+=51;
-				if(datamgr.cursor == 3) datamgr.editable+=5;
-				if(datamgr.cursor == 4) datamgr.editable++;
-				if(datamgr.cursor == 5) datamgr.editable++;
+				if(datamgr.cursor == 1 && datamgr.editable < 255) datamgr.editable+=5;
+				if(datamgr.cursor == 2 && datamgr.editable < 255) datamgr.editable+=51;
+				if(datamgr.cursor == 3 && datamgr.editable < 255) datamgr.editable+=5;
+				if(datamgr.cursor == 4 && datamgr.editable < 255) datamgr.editable++;
+				if(datamgr.cursor == 5 && datamgr.editable < 255) datamgr.editable=+5;
 				#else
-				if(datamgr.cursor == 0) datamgr.editable+=5;
-				if(datamgr.cursor == 1) datamgr.editable+=51;
-				if(datamgr.cursor == 2) datamgr.editable+=5;
-				if(datamgr.cursor == 3) datamgr.editable++;
-				if(datamgr.cursor == 4) datamgr.editable++;
+				if(datamgr.cursor == 0 && datamgr.editable < 255) datamgr.editable+=5;
+				if(datamgr.cursor == 1 && datamgr.editable < 255) datamgr.editable+=51;
+				if(datamgr.cursor == 2 && datamgr.editable < 255) datamgr.editable+=5;
+				if(datamgr.cursor == 3 && datamgr.editable < 255) datamgr.editable++;
+				if(datamgr.cursor == 4 && datamgr.editable < 255) datamgr.editable+5;
 				#endif
 			}else if(datamgr.menu_page == 4){
 				switch (datamgr.cursor){
@@ -564,7 +557,7 @@ void mode_handler(){
 			if(datamgr.menu_page == 2){
 				switch (datamgr.cursor){
 					case 1:{} break;
-					case 2:{ ADCManager::pwm_PB3(datamgr.editable ? 255 : 0); } break;
+					case 2:{ ADCManager::pwm_PB3(datamgr.editable); } break;
 					case 3:{ outmgr.set_contrast(datamgr.editable); } break;
 				}
 			}
@@ -579,17 +572,30 @@ void loop() {
 	datamgr.is_charging = !PORTD_READ(1);
 	datamgr.is_charged = !PORTD_READ(0);
 
+	if(datamgr.battery_voltage < BAT_ADC_MIN){
+		low_battery_kill();
+	}
+
 	if(!datamgr.is_charging){
 		if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }
 		else { datamgr.pwm_converter--; }
 		ADCManager::pwm_PD3(datamgr.pwm_converter);
-		ADCManager::pwm_PB3(datamgr.backlight);
+		if((datamgr.rad_back > datamgr.alarm_threshold) && !datamgr.no_alarm && (datamgr.counter_mode == 0)) { datamgr.do_alarm = true; }
+		else { if(datamgr.counter_mode == 0) datamgr.do_alarm = false; }
+		if(!datamgr.do_alarm) ADCManager::pwm_PB3(datamgr.backlight);
+
+		if(!datamgr.no_alarm) {
+			if(datamgr.do_alarm){
+				if(millis()-datamgr.alarm_timer > 300){
+					datamgr.alarm_timer = millis();
+					ADCManager::pwm_PD5(datamgr.alarm ? 100 : 200);
+					ADCManager::pwm_PB3(datamgr.alarm ? 204 : 0);
+					datamgr.alarm = !datamgr.alarm;
+				}
+			}
+		}
 
 		button_action();
-
-		if(datamgr.alarm){
-			outmgr.do_alarm();
-		}
 
 		if(datamgr.counter_mode==0){
 			if(datamgr.rad_dose - datamgr.rad_dose_old > datamgr.save_dose_interval){
@@ -607,5 +613,7 @@ void loop() {
 	if(!datamgr.is_sleeping){
 		mode_handler();
 		outmgr.update();
+	}else{
+		if(datamgr.rad_back > 20) sleep();
 	}
 }

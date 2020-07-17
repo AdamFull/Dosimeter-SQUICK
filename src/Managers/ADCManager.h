@@ -27,6 +27,9 @@ class ADCManager{
         byte adc0_read();
         byte adc1_read();
 
+        uint16_t battery_bank[BAT_BANK_SIZE];
+        bool first_mean = true;
+
         byte avgFactor = 5;
         uint16_t batValue = 0;
         uint16_t hvValue = 0;
