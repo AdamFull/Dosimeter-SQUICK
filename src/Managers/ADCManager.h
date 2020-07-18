@@ -24,8 +24,8 @@ class ADCManager{
         static void pwm_PD5(byte pwm);
 
     private:
-        byte adc0_read();
-        byte adc1_read();
+        uint16_t adc0_read();
+        uint16_t adc1_read();
 
         uint16_t battery_bank[BAT_BANK_SIZE];
         bool first_mean = true;

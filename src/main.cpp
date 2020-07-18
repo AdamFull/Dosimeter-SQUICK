@@ -278,7 +278,7 @@ void button_action(){
 		btn_reset.resetStates();
 		btn_set.resetStates();
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
-		if(!menu_mode && !btn_set.isHold()) datamgr.no_alarm = !datamgr.no_alarm;
+		if(!menu_mode && !btn_set.isPress()) datamgr.no_alarm = !datamgr.no_alarm;
 		if(menu_mode && !editing_mode){										//Если находимся в меню
 			datamgr.is_detected = true;
 			if(datamgr.menu_page == 0) {datamgr.page = 1; datamgr.do_alarm = false;}
@@ -334,6 +334,7 @@ void button_action(){
 		outmgr.update_request();
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(datamgr.is_sleeping) sleep();
+		if(!menu_mode && !btn_reset.isPress()) outmgr.battery_request();
 		if(menu_mode && !editing_mode) {
 			datamgr.is_detected = true;
 			switch (datamgr.menu_page){
@@ -594,6 +595,8 @@ void loop() {
 				}
 			}
 		}
+
+		if(outmgr.get_battery_requet()) outmgr.update_request();
 
 		button_action();
 

@@ -79,21 +79,33 @@ void OutputManager::draw_main(){
     display.clearDisplay();
     int coeff = mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 12);             //Значение сдвига пикселей для визуализации заряда аккумулятора
 
-    display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
-    display.fillRect(83-coeff, 1, 12, 5, BLACK);
+    if(!datamgr->is_charging && !show_battery){
+        display.drawBitmap(69, 0, battery_Bitmap, 15, 7, BLACK);
+        display.fillRect(83-coeff, 1, 12, 5, BLACK);
+    }
     if(datamgr->is_charging) display.drawBitmap(60, 0, charge_Bitmap, 7, 7, BLACK);
 
     if(!datamgr->mute) display.drawBitmap(0, 0, speaker_Bitmap, 7, 7, BLACK);
     if(!datamgr->no_alarm) display.drawBitmap(8, 0, alarm_Bitmap, 7, 7, BLACK);
     if(datamgr->mean_mode) display.drawBitmap(17, 0, mean_Bitmap, 7, 7, BLACK);
 
-    if(datamgr->is_charging){
-        uint8_t progress = map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX + 20, 0, 42);
+    if(show_battery){
+        display.drawBitmap(17, 12, big_battery_Bitmap, 50, 24, BLACK);
+        display.setCursor(20, 21);
+        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 3.6, 4.2));
+        display.print("/");
+        display.print(map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 100));
+        _delay_ms(1000);
+        show_battery = false;
+    }else if(datamgr->is_charging){
+        uint8_t progress = map(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 0, 42);
         display.drawBitmap(17, 12, big_battery_Bitmap, 50, 24, BLACK);
         display.fillRect(19, 14, progress, 20, BLACK);
         display.setCursor(0, 0);
         display.print("V:");
-        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX + 20, 3.6, 4.2));
+        display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 3.6, 4.2));
+        display.setCursor(0, 38);
+        if(datamgr->is_charged) display.print(SUCCESS);
     }else{
         if(datamgr->counter_mode == 0){
             display.setTextColor(BLACK, WHITE);

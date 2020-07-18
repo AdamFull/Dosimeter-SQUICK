@@ -1,18 +1,19 @@
 #include <Managers/ADCManager.h>
 #include <avr/io.h>
-#include <Arduino.h>
 
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#define bit(b) (1UL << (b))
 
 void ADCManager::adc_init(){
-    //ADCSRA |= (1 << ADEN)|(1 << ADPS2)|(1 << ADPS1)|(1 << ADPS0); // Включаем АЦП, устанавливаем предделитель преобразователя на 128 
-	//Изменяем параметры таймера 2 для повышения частоты шим на 3 и 11
+    sbi(ADCSRA, ADPS2);
+	sbi(ADCSRA, ADPS1);
+	sbi(ADCSRA, ADPS0);
 }
 
 uint16_t ADCManager::get_battery_voltage(){
 	uint16_t resulting_value = 0;
 	for(int i = 0; i < 30; i++){
-		batValue = (batValue * (avgFactor - 1) + analogRead(A0)) / avgFactor;
+		batValue = (batValue * (avgFactor - 1) + adc0_read()) / avgFactor;
 	}
 	if(first_mean){
 		for(uint8_t i = 0; i < BAT_BANK_SIZE; i++) battery_bank[i] = batValue;
@@ -30,30 +31,31 @@ uint16_t ADCManager::get_battery_voltage(){
 uint16_t ADCManager::get_hv()
 {
 	for(int i = 0; i < 30; i++){
-		hvValue = (hvValue * (avgFactor - 1) + analogRead(A1)) / avgFactor;
+		hvValue = (hvValue * (avgFactor - 1) + adc1_read()) / avgFactor;
 	}
 	return hvValue;
 }
 
-byte ADCManager::adc1_read(){
-	ADMUX = 0b11100001;//выбор внутреннего опорного 1,1В и А1
-  	ADCSRA = 0b11100111;
-  	_delay_us(20);
-	ADCSRA |= 0x10;
-	byte result = ADCH;
-	//ADCSRA &= ~(1 << ADEN);
-	return result;
+uint16_t ADCManager::adc1_read(){
+	uint8_t low, high;
+	ADMUX = 0b01000001;
+	//ADMUX = (1 << 6) | (1 & 0x07);
+	sbi(ADCSRA, ADSC);
+	while(bit_is_set(ADCSRA, ADSC));
+	low  = ADCL;
+	high = ADCH;
+  	return (high << 8) | low;
 }
 
-byte ADCManager::adc0_read(){
-	ADMUX = 0b11100000;//выбор внутреннего опорного 1,1В и А1
-  	ADCSRA = 0b11100111;
-  	_delay_us(20);
-	while ((ADCSRA & 0x10) == 0);
-	ADCSRA |= 0x10;
-	byte result = ADCH;
-	//ADCSRA &= ~(1 << ADEN);
-	return result;
+uint16_t ADCManager::adc0_read(){
+	uint8_t low, high;
+	ADMUX = 0b01000000;
+	//ADMUX = (1 << 6) | (0 & 0x07);
+	sbi(ADCSRA, ADSC);
+	while(bit_is_set(ADCSRA, ADSC));
+	low  = ADCL;
+	high = ADCH;
+  	return (high << 8) | low;
 }
 
 void ADCManager::pwm_PD3(byte pwm) {
