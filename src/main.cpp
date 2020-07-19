@@ -215,9 +215,7 @@ void setup() {
 
 
 	datamgr.battery_voltage = adcmgr.get_battery_voltage();
-	if(datamgr.battery_voltage < BAT_ADC_MIN){
-		low_battery_kill();
-	}
+	if(datamgr.battery_voltage < BAT_ADC_MIN) datamgr.low_voltage = true;
 
 	datamgr.counter_mode = 0;
 }
@@ -256,10 +254,10 @@ void interrupt_setup(){
 	cli();
 	ACSR |= 1 << ACD; //отключаем компаратор
 
-	_SFR_BYTE(TCCR0B) |= _BV(CS01);
-	_SFR_BYTE(TCCR0B) |= _BV(CS00);
-	_SFR_BYTE(TCCR0A) |= _BV(CS01);
-	_SFR_BYTE(TCCR0A) |= _BV(CS00);
+	//_SFR_BYTE(TCCR0B) |= _BV(CS01);
+	//_SFR_BYTE(TCCR0B) |= _BV(CS00);
+	//_SFR_BYTE(TCCR0A) |= _BV(CS01);
+	//_SFR_BYTE(TCCR0A) |= _BV(CS00);
 
 	//настраиваем Timer 1
 	TIMSK1=0; //отключить таймер
@@ -280,10 +278,14 @@ void interrupt_setup(){
 void low_battery_kill(){
 	ADCManager::pwm_PD3(0);
 	ADCManager::pwm_PB3(0);
+	PORTC_WRITE(2, LOW);
 	datamgr.page = 3;
 	while(true){
 		datamgr.is_charging = !PORTD_READ(1);
-		if(datamgr.is_charging) break;
+		if(datamgr.is_charging) {
+			PORTC_WRITE(2, HIGH);
+			break;
+		}
 		outmgr.update();
 	}
 }
@@ -606,9 +608,8 @@ void loop() {
 	datamgr.is_charging = !PORTD_READ(1);
 	datamgr.is_charged = !PORTD_READ(0);
 
-	if(datamgr.battery_voltage < BAT_ADC_MIN){
-		low_battery_kill();
-	}
+	if((datamgr.battery_voltage < BAT_ADC_MIN) && !datamgr.low_voltage) datamgr.low_voltage = true;
+	if(datamgr.low_voltage) low_battery_kill();
 
 	if(!datamgr.is_charging){
 		if(adcmgr.get_hv() < HV_ADC_REQ) { datamgr.pwm_converter++; }

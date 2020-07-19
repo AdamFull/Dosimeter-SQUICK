@@ -86,6 +86,7 @@ class DataManager{
         bool mute = false;
         bool no_alarm = false;
         bool do_alarm = false;
+        bool low_voltage = false;
         bool is_charging = false;
         bool is_charged = false;
         bool is_detected = false;
