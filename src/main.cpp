@@ -312,6 +312,8 @@ void button_action(){
 		outmgr.update_request();
 		btn_reset.resetStates();
 		btn_set.resetStates();
+	}else if(btn_set.isHold() && !menu_mode){
+		if(!menu_mode && !btn_reset.isPress()) outmgr.battery_request(true);
 	}else if(btn_reset_isHolded){											//Удержание кнопки ресет
 		if(!menu_mode && !btn_set.isPress()) datamgr.no_alarm = !datamgr.no_alarm;
 		if(menu_mode && !editing_mode){										//Если находимся в меню
@@ -343,7 +345,7 @@ void button_action(){
 				if(datamgr.cursor == 2 && datamgr.editable > 0) datamgr.editable-=51;
 				if(datamgr.cursor == 3 && datamgr.editable > 0) datamgr.editable-=5;
 				if(datamgr.cursor == 4 && datamgr.editable > 0) datamgr.editable--;
-				if(datamgr.cursor == 5 && datamgr.editable > 0) datamgr.editable-=5;
+				if(datamgr.cursor == 5 && datamgr.editable > 30) datamgr.editable-=5;
 				#else
 				if(datamgr.cursor == 0 && datamgr.editable > 0) datamgr.editable-=5;
 				if(datamgr.cursor == 1 && datamgr.editable > 0) datamgr.editable-=51;
@@ -369,7 +371,6 @@ void button_action(){
 		outmgr.update_request();
 	}else if(btn_set_isHolded){												//Удержание кнопки сет
 		if(datamgr.is_sleeping) sleep();
-		if(!menu_mode && !btn_reset.isPress()) outmgr.battery_request();
 		if(menu_mode && !editing_mode) {
 			datamgr.is_detected = true;
 			switch (datamgr.menu_page){
@@ -559,7 +560,7 @@ void button_action(){
 				if(datamgr.cursor == 2 && datamgr.editable < 255) datamgr.editable+=51;
 				if(datamgr.cursor == 3 && datamgr.editable < 255) datamgr.editable+=5;
 				if(datamgr.cursor == 4 && datamgr.editable < 255) datamgr.editable++;
-				if(datamgr.cursor == 5 && datamgr.editable < 255) datamgr.editable=+5;
+				if(datamgr.cursor == 5 && datamgr.editable < 255) datamgr.editable+=5;
 				#else
 				if(datamgr.cursor == 0 && datamgr.editable < 255) datamgr.editable+=5;
 				if(datamgr.cursor == 1 && datamgr.editable < 255) datamgr.editable+=51;
@@ -576,7 +577,7 @@ void button_action(){
 			#if defined(UNIVERSAL_COUNTER)
 			else if(datamgr.menu_page == 7){
 				switch (datamgr.cursor){
-					case 0:{ if(datamgr.editable < 150) datamgr.editable++; } break;
+					case 0:{ if(datamgr.editable < 100) datamgr.editable++; } break;
 					case 1:{ if(datamgr.editable < 40) datamgr.editable++; } break;
 				}
 			}
@@ -631,7 +632,7 @@ void loop() {
 		}
 
 		if(outmgr.get_battery_requet()) outmgr.update_request();
-
+		outmgr.battery_request(false);
 		button_action();
 
 		if(datamgr.counter_mode==0){

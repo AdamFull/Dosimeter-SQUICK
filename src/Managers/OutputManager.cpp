@@ -90,10 +90,6 @@ void OutputManager::draw_main(){
     if(datamgr->mean_mode && !datamgr->is_charging) display.drawBitmap(17, 0, mean_Bitmap, 7, 7, BLACK);
 
     if(show_battery){
-        if(millis()-no_volt_ticker > 5000){
-            no_volt_ticker = millis();
-            show_battery = false;
-        }
         display.drawBitmap(17, 12, big_battery_Bitmap, 50, 24, BLACK);
         display.setCursor(20, 21);
         display.print(mapfloat(datamgr->battery_voltage, BAT_ADC_MIN, BAT_ADC_MAX, 3.6, 4.2));
@@ -337,11 +333,11 @@ void OutputManager::draw_menu(){
                 if (datamgr->cursor==4) display.print(T_CURSOR);
                 display.print(DOSE_SAVE);
                 if(datamgr->cursor==4 && datamgr->editing_mode){
-                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*4, 10);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*4, 10);
                     display.setTextColor(WHITE, BLACK);
                     display.print(datamgr->editable);
                 }else{
-                    display.setCursor(84 - (getNumOfDigits(datamgr->save_dose_interval)+1)*4, 10);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->save_dose_interval)+2)*4, 10);
                     display.print(datamgr->save_dose_interval);
                 }
                 display.setCursor(0, 20);
@@ -350,11 +346,11 @@ void OutputManager::draw_menu(){
                 if (datamgr->cursor==5) display.print(T_CURSOR);
                 display.print(ALARM);
                 if(datamgr->cursor==5 && datamgr->editing_mode){
-                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+1)*4, 20);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->editable)+2)*4, 20);
                     display.setTextColor(WHITE, BLACK);
                     display.print(datamgr->editable);
                 }else{
-                    display.setCursor(84 - (getNumOfDigits(datamgr->alarm_threshold)+1)*4, 20);
+                    display.setCursor(84 - (getNumOfDigits(datamgr->alarm_threshold)+2)*4, 20);
                     display.print(datamgr->alarm_threshold);
                 }
                 display.setCursor(0, 30);

@@ -16,7 +16,7 @@ class OutputManager{
         void beep();
         void beep(uint16_t time, byte duration);
         inline void update_request() { update_required = true; }
-        inline void battery_request() { show_battery = true; }
+        inline void battery_request(bool val) { show_battery = val; }
         inline bool get_battery_requet() { return show_battery; }
 
         inline void set_contrast(byte contrast) { display.setContrast(contrast); }

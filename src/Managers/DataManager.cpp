@@ -54,7 +54,7 @@ void DataManager::setup_eeprom(){
 	EEPROM.put(0b11, (byte)0);
 	EEPROM.put(0b100, (byte)60);
 	
-	EEPROM.put(0b1001, (byte)0);
+	EEPROM.put(0b1001, (uint32_t)0);
 	EEPROM.put(0b1111, (byte)100);
 }
 
@@ -134,7 +134,7 @@ void DataManager::save_alarm(){
 void DataManager::reset_dose(void){
 	rad_sum = 0;
 	rad_dose_old = 0;
-	EEPROM.put(0b110, 0);
+	EEPROM.put(0b110, (uint32_t)0);
 }
 
 void DataManager::reset_activity_test(){

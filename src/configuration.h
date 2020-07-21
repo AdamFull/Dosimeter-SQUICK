@@ -70,7 +70,7 @@
 
 #define BAT_BANK_SIZE 5
 #define BAT_ADC_MIN 374
-#define BAT_ADC_MAX 460
+#define BAT_ADC_MAX 449
 
 #define TARGET_VOLTAGE 400			//Напряжение счётчика в вольтах
 #define CORRECT_COEFF 1.15			//Коэффициент подгонки напряжения
