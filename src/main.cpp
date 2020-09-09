@@ -228,23 +228,12 @@ void sleep(){
 		datamgr.update_rad_buffer();
 		
 		datamgr.is_sleeping = true;
-		//Уменьшаю задержку кнопки, т.к. на заниженых частотах всё работает гораздо медленнее, 6 сек на включение
-		btn_set.setTimeout(10);
-		//Замедляю микроконтроллер в 6 раз, частота 250 кГц (Остальное слишком медленно, он не хочет просыпаться)
-		CLKPR = 1<<CLKPCE;
-    	CLKPR = 3;
 
 		PORTC_WRITE(3, LOW);						//Выключить экран
 	}else{
-		//Ставим делитель обратно, частота 16 МГц
-		CLKPR = 1<<CLKPCE;
-    	CLKPR = 0;
-
-		btn_set.setTimeout(1000);
-
 		datamgr.is_sleeping = false;
 		PORTC_WRITE(3, HIGH);
-		resetFunc();
+		//resetFunc();
 	}
 	
 }
